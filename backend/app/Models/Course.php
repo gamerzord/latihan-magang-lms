@@ -14,19 +14,35 @@ class Course extends Model
         'title',
         'course_code',
         'description',
-        'teacher_id',
-        'is_active'
+        'teacher_id'
     ];
 
     public function students()
     {
         return $this->belongsToMany(User::class, 'enrollments', 'course_id', 'student_id')
-        ->where('role', 'student');
+            ->join('users', 'enrollments.student_id', '=', 'users.id')
+            ->where('users.role', '=', 'student')
+            ->select('users.*');
     }
+
     
     public function teacher()
     {
         return $this->belongsTo(User::class, 'teacher_id');
     }
 
+    public function lessons()
+    {
+        return $this->hasMany(Lesson::class);
+    }
+
+    public function getTeacherNameAttribute()
+    {
+        return $this->teacher ? $this->teacher->name : 'Unknown Teacher';
+    }
+
+    public function getLessonCountAttribute()
+    {
+        return $this->lessons()->count();
+    }
 }
