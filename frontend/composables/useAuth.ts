@@ -8,43 +8,25 @@ interface AuthState {
 
 export const useAuth = () => {
   const config = useRuntimeConfig()
-  
+
   const state = reactive<AuthState>({
     user: null,
     pending: true,
     authenticated: false
   })
 
-  onMounted(async () => {
-    try {
-      await $fetch('https://localhost:8000/sanctum/csrf-cookie', {
-    })
-      await fetchUser()
-    } catch (err) {
-      console.warn('Skipping fetchUser, Sanctum not ready yet')
-      state.pending = false
-    }
-  })
-
   const fetchUser = async (): Promise<User | null> => {
     state.pending = true
     try {
-      const { data, error } = await useFetch<User>(`${config.public.apiBase}/user`, {
+      const user = await $fetch<User>(`${config.public.apiBase}/user`, {
         credentials: 'include'
       })
-      
-      if (error.value) {
-        console.error('Auth fetch error:', error.value)
-        state.user = null
-        state.authenticated = false
-        return null
-      }
 
-      state.user = data.value || null
-      state.authenticated = !! state.user
+      state.user = user || null
+      state.authenticated = !!user
       return state.user
-    } catch (error) {
-      console.error('Auth error:', error)
+    } catch (error: any) {
+      console.warn('Auth fetch error:', error)
       state.user = null
       state.authenticated = false
       return null
@@ -53,10 +35,23 @@ export const useAuth = () => {
     }
   }
 
-  const login = async (credentials: { email: string; password: string }): Promise<boolean> => {
+  onMounted(async () => {
     try {
       await $fetch('https://localhost:8000/sanctum/csrf-cookie', {
-    })
+        credentials: 'include'
+      })
+      await fetchUser()
+    } catch (err) {
+      console.warn('Skipping fetchUser, Sanctum not ready yet')
+      state.pending = false
+    }
+  })
+
+  const login = async (credentials: { email: string; password: string }) => {
+    try {
+      await $fetch('https://localhost:8000/sanctum/csrf-cookie', {
+        credentials: 'include'
+      })
 
       await $fetch(`${config.public.apiBase}/login`, {
         method: 'POST',
@@ -66,15 +61,15 @@ export const useAuth = () => {
 
       await fetchUser()
       return true
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error)
       return false
     }
   }
 
-  const logout = async (): Promise<boolean> => {
+  const logout = async () => {
     try {
-      await $fetch(`${config.public.apiBase}/logout`, { 
+      await $fetch(`${config.public.apiBase}/logout`, {
         method: 'POST',
         credentials: 'include'
       })
@@ -88,8 +83,8 @@ export const useAuth = () => {
     }
   }
 
-  const hasRole = (role: User['role']): boolean => state.user?.role === role
-  const hasAnyRole = (roles: User['role'][]): boolean => roles.includes(state.user?.role as User['role'])
+  const hasRole = (role: User['role']) => state.user?.role === role
+  const hasAnyRole = (roles: User['role'][]) => roles.includes(state.user?.role as User['role'])
 
   return {
     ...toRefs(state),

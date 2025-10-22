@@ -1,82 +1,83 @@
 <template>
-  <v-container class="fill-height" fluid>
-    <v-row align="center" justify="center">
-      <v-col>
-        <v-card class="elevation-12">
-          <v-toolbar color="primary" dark flat>
-            <v-toolbar-title>Login to LMS</v-toolbar-title>
-          </v-toolbar>
-          
-          <v-card-text>
-            <v-form ref="form" v-model="valid" @submit.prevent="handleLogin">
-              <v-text-field
-                v-model="email"
-                :rules="emailRules"
-                label="Email"
-                prepend-icon="mdi-email"
-                required
-                type="email"
-              />
+  <v-container
+    fluid
+    class="auth-container d-flex flex-column justify-center align-center"
+  >
+    <v-card class="auth-card pa-8" elevation="0">
+      <v-card-title class="text-h5 font-weight-bold text-center mb-6">
+        Login to LMS
+      </v-card-title>
 
-              <v-text-field
-                v-model="password"
-                :rules="passwordRules"
-                label="Password"
-                prepend-icon="mdi-lock"
-                :type="showPassword ? 'text' : 'password'"
-                :append-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                @click:append="showPassword = !showPassword"
-                required
-              />
+      <v-form ref="form" v-model="valid" @submit.prevent="handleLogin">
+        <v-text-field
+          v-model="email"
+          :rules="emailRules"
+          label="Email"
+          prepend-icon="mdi-email-outline"
+          variant="outlined"
+          density="comfortable"
+          class="mb-4"
+          type="email"
+        />
 
-              <v-alert
-                v-if="errorMessage"
-                type="error"
-                dense
-                class="mb-4"
-              >
-                {{ errorMessage }}
-              </v-alert>
-            </v-form>
-          </v-card-text>
+        <v-text-field
+          v-model="password"
+          :rules="passwordRules"
+          label="Password"
+          prepend-icon="mdi-lock-outline"
+          variant="outlined"
+          density="comfortable"
+          class="mb-4"
+          :type="showPassword ? 'text' : 'password'"
+          :append-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
+          @click:append="showPassword = !showPassword"
+        />
 
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              color="primary"
-              :loading="loading"
-              :disabled="!valid"
-              @click="handleLogin"
-            >
-              Login
+        <v-alert
+          v-if="errorMessage"
+          type="error"
+          variant="tonal"
+          class="mb-4"
+        >
+          {{ errorMessage }}
+        </v-alert>
+
+        <v-btn
+          color="primary"
+          block
+          class="py-3 mb-4"
+          :loading="loading"
+          :disabled="!valid"
+          type="submit"
+          rounded
+        >
+          Login
+        </v-btn>
+
+        <div class="text-center">
+          <p class="text-body-2 text-medium-emphasis">
+            Don’t have an account?
+            <v-btn variant="text" color="primary" @click="navigateTo('/register')">
+              Register
             </v-btn>
-          </v-card-actions>
-
-          <v-divider />
-
-          <v-card-actions>
-            <v-btn text small @click="navigateTo('/register')">
-              Don't have an account? Register
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-col>
-    </v-row>
+          </p>
+        </div>
+      </v-form>
+    </v-card>
   </v-container>
 </template>
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'auth'
+  layout: 'blank'
 })
 
-const { login, authenticated } = useAuth()
+const { login } = useAuth()
 
 const loading = ref(false)
 const valid = ref(false)
 const errorMessage = ref('')
 const showPassword = ref(false)
-
 const email = ref('')
 const password = ref('')
 
@@ -84,35 +85,42 @@ const emailRules = [
   (v: string) => !!v || 'Email is required',
   (v: string) => /.+@.+\..+/.test(v) || 'Email must be valid',
 ]
-
 const passwordRules = [
   (v: string) => !!v || 'Password is required',
-  (v: string) => v.length >= 6 || 'Password must be at least 6 characters',
+  (v: string) => v.length >= 6 || 'Minimum 6 characters',
 ]
-
-if (authenticated.value) {
-  navigateTo('/')
-}
 
 const handleLogin = async () => {
   if (!valid.value) return
-  
   loading.value = true
   errorMessage.value = ''
 
   try {
-    await login({
-      email: email.value,
-      password: password.value
-    })
-
-      errorMessage.value = 'Invalid email or password'
-
+    await login({ email: email.value, password: password.value })
+    navigateTo('/')
   } catch (error: any) {
-    console.error('Login error:', error)
-    errorMessage.value = error.data?.message || 'Login failed. Please try again.'
+    errorMessage.value = error.data?.message || 'Invalid email or password'
   } finally {
     loading.value = false
   }
 }
 </script>
+
+<style scoped>
+.auth-container {
+  min-height: 100vh;
+  background-color: #f8f9fc;
+}
+
+.auth-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  width: 100%;
+  max-width: 440px;
+}
+
+.v-input input {
+  font-size: 15px;
+}
+</style>

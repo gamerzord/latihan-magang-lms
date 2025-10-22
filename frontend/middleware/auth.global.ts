@@ -11,6 +11,10 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
 
-  if (!token) return navigateTo('/')
+  if (to.name === 'index' || to.path === '/') {
+    return
+  }
+
+  if (!token) return navigateTo('/login')
   }
 })

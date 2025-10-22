@@ -24,6 +24,8 @@ export interface Course {
     students_count?: number
     lessons_count?: number
     teacher_name?: string
+    lessons?: Lesson[]
+    thumbnail?: string
 }
 
 export interface Lesson {

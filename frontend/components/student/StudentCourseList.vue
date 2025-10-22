@@ -1,4 +1,4 @@
-<template>
+<template v-if="user?.role === 'teacher'">
   <div class="student-course-list">
     <h1 class="text-h4 mb-6">Courses</h1>
 
@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import type { Course } from '~/types/models'
+const { user } = useAuth()
 
 interface Props {
   courses: Course[]

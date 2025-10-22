@@ -120,6 +120,56 @@ class CourseController extends Controller
             'message' => 'Course Deleted Successfully',
         ], 200);
     }
+    
+    public function studentCourses(Request $request)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'student') {
+        return response()->json([
+            'message' => 'Unauthorized. Only students can access this endpoint.'
+        ], 403);
+    }
+
+    $courses = $user->studentCourses()
+        ->with(['teacher'])
+        ->withCount(['students', 'lessons'])
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(function ($course) use ($user) {
+            $course->progress = $this->calculateCourseProgress($course, $user);
+            $course->teacher_name = $course->teacher->name ?? 'Unknown';
+            return $course;
+        });
+
+    return response()->json(['data' => $courses], 200);
+}
+
+public function showStudentCourse(Request $request, $id)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'student') {
+        return response()->json([
+            'message' => 'Unauthorized. Only students can access this endpoint.'
+        ], 403);
+    }
+
+    $course = $user->studentCourses()
+        ->where('courses.id', $id)
+        ->with(['teacher', 'lessons'])
+        ->withCount(['students', 'lessons'])
+        ->first();
+
+    if (!$course) {
+        return response()->json(['message' => 'Course not found'], 404);
+    }
+
+    $course->progress = $this->calculateCourseProgress($course, $user);
+    $course->teacher_name = $course->teacher->name ?? 'Unknown';
+
+    return response()->json(['data' => $course], 200);
+}
 
     private function calculateCourseProgress($course, $user)
     {

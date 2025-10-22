@@ -79,7 +79,8 @@ class AuthController extends Controller
 
   public function logout(Request $request)
   {
-    $request->user()->currentAccessToken()->delete();
+    auth()->guard('web')->logout();
+
     return response()
       ->json(['message' => 'Logged out successfully'], 200)
       ->cookie(
@@ -92,6 +93,18 @@ class AuthController extends Controller
         true,
         false,
         'none',
-      );
+      )
+      ->cookie(
+            'admin-auth-token',
+            '',
+            -1,
+            '/',
+            env('SESSION_DOMAIN'),
+            true,
+            true,
+            false,
+            'none'
+        );
+      
   }
 }
