@@ -45,3 +45,14 @@ export interface Assignment {
     description: string
     due_date: Date | string
 }
+
+export interface Submission {
+    id: number
+    assignment_id: number | null
+    student_id: number | null
+    file_url: string
+    status: 'submitted' | 'late' | 'not submitted'
+    grade: number | null
+    created_at: Date | string
+    updated_at: Date | string
+}

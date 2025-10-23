@@ -171,6 +171,58 @@ public function showStudentCourse(Request $request, $id)
     return response()->json(['data' => $course], 200);
 }
 
+public function teacherCourses(Request $request)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'teacher') {
+        return response()->json([
+            'message' => 'Unauthorized. Only teachers can access this endpoint.'
+        ], 403);
+    }
+
+    $courses = $user->teacherCourses()
+        ->withCount(['students', 'lessons'])
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(function ($course) {
+            // Add any teacher-specific course data here
+            $course->students_count = $course->students_count ?? 0;
+            $course->lessons_count = $course->lessons_count ?? 0;
+            return $course;
+        });
+
+    return response()->json(['data' => $courses], 200);
+}
+
+public function showTeacherCourse(Request $request, $id)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'teacher') {
+        return response()->json([
+            'message' => 'Unauthorized. Only teachers can access this endpoint.'
+        ], 403);
+    }
+
+    $course = $user->teacherCourses()
+        ->where('courses.id', $id)
+        ->with(['students', 'lessons', 'assignments'])
+        ->withCount(['students', 'lessons', 'assignments'])
+        ->first();
+
+    if (!$course) {
+        return response()->json(['message' => 'Course not found'], 404);
+    }
+
+    // Add any additional teacher-specific course data
+    $course->total_students = $course->students_count;
+    $course->total_lessons = $course->lessons_count;
+    $course->total_assignments = $course->assignments_count;
+
+    return response()->json(['data' => $course], 200);
+}
+
     private function calculateCourseProgress($course, $user)
     {
         $totalLessons = $course->lessons_count;
