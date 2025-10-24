@@ -106,12 +106,13 @@ const loadCourses = async () => {
   error.value = null
 
   try {
-    const { data, error: fetchError } = await useFetch<{ data: Course[] }>(
-      `${config.public.apiBase}/student/courses`,
+    const { data, error: fetchError } = await useFetch<{ courses: Course[] }>(
+      `${config.public.apiBase}/student/courses`, {
+      }
     )
 
     if (fetchError.value) throw new Error(fetchError.value.message)
-    courses.value = data.value?.data || []
+    courses.value = data.value?.courses || []
   } catch (err: any) {
     console.error('Error loading courses:', err)
     error.value = err.message || 'An unexpected error occurred'
@@ -124,12 +125,9 @@ const goToCourse = (id: number) => {
   navigateTo(`/student/courses/${id}`)
 }
 
-onMounted(async () => {
+useAutoRefresh(async () => {
   await fetchUser()
   await loadCourses()
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) loadCourses()
-  })
 })
 
 </script>
@@ -138,6 +136,7 @@ onMounted(async () => {
 .text-truncate-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

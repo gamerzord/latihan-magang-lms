@@ -14,9 +14,12 @@ class Submission extends Model
         'assignment_id',
         'student_id',
         'file_url',
+        'mimetype',
+        'filename',
         'status',
-        'grade'
+        'grade',
     ];
+
 
     public function assignment() {
         return $this->belongsTo(Assignment::class, "assignment_id");

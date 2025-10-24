@@ -11,7 +11,7 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
 
-  if (to.name === 'index' || to.path === '/') {
+  if (to.path === '/') {
     return
   }
 

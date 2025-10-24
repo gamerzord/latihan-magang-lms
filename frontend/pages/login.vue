@@ -33,6 +33,17 @@
           @click:append="showPassword = !showPassword"
         />
 
+        <!-- Admin Login Toggle -->
+        <div class="mb-4">
+          <v-checkbox
+            v-model="isAdminLogin"
+            label="Admin Login"
+            color="primary"
+            density="compact"
+            hide-details
+          />
+        </div>
+
         <v-alert
           v-if="errorMessage"
           type="error"
@@ -51,12 +62,12 @@
           type="submit"
           rounded
         >
-          Login
+          {{ isAdminLogin ? 'Admin Login' : 'Login' }}
         </v-btn>
 
         <div class="text-center">
           <p class="text-body-2 text-medium-emphasis">
-            Don’t have an account?
+            Don't have an account?
             <v-btn variant="text" color="primary" @click="navigateTo('/register')">
               Register
             </v-btn>
@@ -68,16 +79,20 @@
 </template>
 
 <script setup lang="ts">
+import type { AdminLoginResponse } from '~/types/models'
+
 definePageMeta({
   layout: 'blank'
 })
 
-const { login } = useAuth()
+const config = useRuntimeConfig()
+const { login, setAdminAuth } = useAuth()
 
 const loading = ref(false)
 const valid = ref(false)
 const errorMessage = ref('')
 const showPassword = ref(false)
+const isAdminLogin = ref(false)
 const email = ref('')
 const password = ref('')
 
@@ -96,10 +111,25 @@ const handleLogin = async () => {
   errorMessage.value = ''
 
   try {
-    await login({ email: email.value, password: password.value })
-    navigateTo('/')
+    if (isAdminLogin.value) {
+
+      const response = await $fetch<AdminLoginResponse>(`${config.public.apiBase}/admin/login`, {
+        method: 'POST',
+        body: {
+          email: email.value,
+          password: password.value
+        }
+      })
+
+      setAdminAuth(response.user)
+      navigateTo('/admin')
+    } else {
+      await login({ email: email.value, password: password.value })
+      navigateTo('/')
+    }
   } catch (error: any) {
-    errorMessage.value = error.data?.message || 'Invalid email or password'
+    errorMessage.value = error.data?.message || 
+      (isAdminLogin.value ? 'Invalid admin credentials' : 'Invalid email or password')
   } finally {
     loading.value = false
   }

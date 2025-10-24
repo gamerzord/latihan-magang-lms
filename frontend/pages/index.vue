@@ -91,7 +91,7 @@ const goToDashboard = async () => {
 <style scoped>
 .landing-container {
   min-height: 100vh;
-  background-color: #f8f9fc; /* matches dashboard */
+  background-color: #f8f9fc;
   display: flex;
   flex-direction: column;
   justify-content: center;

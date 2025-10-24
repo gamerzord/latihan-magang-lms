@@ -14,35 +14,17 @@
         <v-btn to="/student" text>
           <v-icon start>mdi-book-open</v-icon> My Courses
         </v-btn>
-        <v-btn to="/student/grades" text>
-          <v-icon start>mdi-chart-line</v-icon> Grades
-        </v-btn>
       </template>
 
       <template v-else-if="user.role === 'teacher'">
         <v-btn to="/teacher" text>
           <v-icon start>mdi-book-multiple</v-icon> My Courses
         </v-btn>
-        <v-btn to="/teacher/courses/create" text>
-          <v-icon start>mdi-plus-circle</v-icon> Create Course
-        </v-btn>
-        <v-btn to="/teacher/analytics" text>
-          <v-icon start>mdi-chart-bar</v-icon> Analytics
-        </v-btn>
       </template>
 
       <template v-else-if="user.role === 'admin'">
         <v-btn to="/admin" text>
           <v-icon start>mdi-view-dashboard</v-icon> Dashboard
-        </v-btn>
-        <v-btn to="/admin/users" text>
-          <v-icon start>mdi-account-group</v-icon> Users
-        </v-btn>
-        <v-btn to="/admin/courses" text>
-          <v-icon start>mdi-book-multiple</v-icon> Courses
-        </v-btn>
-        <v-btn to="/admin/settings" text>
-          <v-icon start>mdi-cog</v-icon> Settings
         </v-btn>
       </template>
 
@@ -57,12 +39,6 @@
         </template>
 
         <v-list>
-          <v-list-item to="/profile">
-            <v-list-item-title>
-              <v-icon start>mdi-account-cog</v-icon>
-              Profile
-            </v-list-item-title>
-          </v-list-item>
           <v-list-item @click="confirmLogout">
             <v-list-item-title>
               <v-icon start>mdi-logout</v-icon>

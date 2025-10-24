@@ -29,10 +29,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/student/courses', [CourseController::class, 'studentCourses']);
     Route::get('/student/courses/{id}', [CourseController::class, 'showStudentCourse']);
+    
 
     Route::get('/teacher/courses', [CourseController::class, 'teacherCourses']);
     Route::get('/teacher/courses/{id}', [CourseController::class, 'showTeacherCourse']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::get('/submissions/{id}/download', [SubmissionController::class, 'download']);
+    Route::get('/teacher/courses/{id}/submissions', [CourseController::class, 'getCourseSubmissions']);
 });
 

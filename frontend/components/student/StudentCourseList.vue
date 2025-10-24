@@ -21,17 +21,7 @@
               <v-chip size="small" color="green" variant="outlined" class="mr-2">
                 Published
               </v-chip>
-              <span class="text-caption text-medium-emphasis">
-                {{ course.progress }}% complete
-              </span>
             </div>
-
-            <v-progress-linear
-              :model-value="course.progress"
-              color="primary"
-              height="6"
-              class="mb-3"
-            />
 
             <p class="text-body-2 text-medium-emphasis mb-0">
               {{ course.description }}
@@ -50,13 +40,12 @@
 
 <script setup lang="ts">
 import type { Course } from '~/types/models'
-const { user } = useAuth()
 
 interface Props {
   courses: Course[]
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const enterCourse = (course: Course) => {
   navigateTo(`/student/courses/${course.id}`)

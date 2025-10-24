@@ -9,14 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('submissions', function (Blueprint $table) {
-            $table->enum('status', ['submitted', 'late', 'not submitted'])->default('not submitted')->after('file_url');
+            // Add before status
+            $table->string('file_url')->nullable()->after('student_id');
+            
         });
     }
 
     public function down(): void
     {
         Schema::table('submissions', function (Blueprint $table) {
-            $table->dropColumn('status');
+            $table->dropColumn(['file_url']);
         });
     }
 };

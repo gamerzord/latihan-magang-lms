@@ -4,39 +4,43 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Course;
+use App\Models\Submission;
 
 class CourseController extends Controller
 {
-    public function index() {
-        $user = auth()->user();
-        
-        if ($user->role === 'student') {
-            $courses = $user->studentCourses()
-                ->with('teacher')
-                ->withCount(['students', 'lessons'])
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function($course) use ($user) {
-                    $course->progress = $this->calculateCourseProgress($course, $user);
-                    return $course;
-                });
-        } else if ($user->role === 'teacher') {
-            $courses = Course::where('teacher_id', $user->id)
-                ->with('teacher')
-                ->withCount(['students', 'lessons'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } else {
-            $courses = Course::with('teacher')
-                ->withCount(['students', 'lessons'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-        }
-
-        return response()->json([
-            'data' => $courses,
-        ], 200);
+public function index() {
+    $user = auth()->user();
+    
+    if ($user->role === 'student') {
+        $courses = Course::with('teacher')
+            ->withCount(['students', 'lessons'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($course){
+            $course->teacher_name = $course->teacher->name ?? 'Unknown';
+            return $course;
+        }); 
+    } else if ($user->role === 'teacher') {
+        $courses = Course::where('teacher_id', $user->id)
+            ->with('teacher')
+            ->withCount(['students', 'lessons'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    } else {
+        $courses = Course::with('teacher')
+            ->withCount(['students', 'lessons'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($course){
+            $course->teacher_name = $course->teacher->name ?? 'Unknown';
+            return $course;
+        }); 
     }
+
+    return response()->json([
+        'courses' => $courses,
+    ], 200);
+}
 
     public function store(Request $request) {
         $data = $request->validate([
@@ -50,7 +54,7 @@ class CourseController extends Controller
 
         return response()->json([
             'message' => 'Course Created Successfully',
-            'data' => $course->loadCount(['students', 'lessons']),
+            'course' => $course->loadCount(['students', 'lessons']),
         ], 201);
     }
 
@@ -66,12 +70,10 @@ class CourseController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role === 'student') {
-            $course->progress = $this->calculateCourseProgress($course, $user);
-        }
+
 
         return response()->json([
-            'data' => $course,
+            'course' => $course,
         ], 200);
     }
 
@@ -95,7 +97,7 @@ class CourseController extends Controller
 
         return response()->json([
             'message' => 'Course Updated Successfully',
-            'data' => $course->loadCount(['students', 'lessons']),
+            'course' => $course->loadCount(['students', 'lessons']),
         ], 200);
     }
 
@@ -136,13 +138,12 @@ class CourseController extends Controller
         ->withCount(['students', 'lessons'])
         ->orderBy('created_at', 'desc')
         ->get()
-        ->map(function ($course) use ($user) {
-            $course->progress = $this->calculateCourseProgress($course, $user);
+        ->map(function ($course){
             $course->teacher_name = $course->teacher->name ?? 'Unknown';
             return $course;
-        });
+        }); 
 
-    return response()->json(['data' => $courses], 200);
+    return response()->json(['courses' => $courses], 200);
 }
 
 public function showStudentCourse(Request $request, $id)
@@ -157,18 +158,17 @@ public function showStudentCourse(Request $request, $id)
 
     $course = $user->studentCourses()
         ->where('courses.id', $id)
-        ->with(['teacher', 'lessons'])
-        ->withCount(['students', 'lessons'])
+        ->with(['teacher', 'lessons', 'assignments'])
+        ->withCount(['students', 'lessons', 'assignments'])
         ->first();
 
     if (!$course) {
         return response()->json(['message' => 'Course not found'], 404);
     }
 
-    $course->progress = $this->calculateCourseProgress($course, $user);
     $course->teacher_name = $course->teacher->name ?? 'Unknown';
 
-    return response()->json(['data' => $course], 200);
+    return response()->json(['course' => $course], 200);
 }
 
 public function teacherCourses(Request $request)
@@ -186,13 +186,12 @@ public function teacherCourses(Request $request)
         ->orderBy('created_at', 'desc')
         ->get()
         ->map(function ($course) {
-            // Add any teacher-specific course data here
             $course->students_count = $course->students_count ?? 0;
             $course->lessons_count = $course->lessons_count ?? 0;
             return $course;
         });
 
-    return response()->json(['data' => $courses], 200);
+    return response()->json(['courses' => $courses], 200);
 }
 
 public function showTeacherCourse(Request $request, $id)
@@ -215,20 +214,39 @@ public function showTeacherCourse(Request $request, $id)
         return response()->json(['message' => 'Course not found'], 404);
     }
 
-    // Add any additional teacher-specific course data
     $course->total_students = $course->students_count;
     $course->total_lessons = $course->lessons_count;
     $course->total_assignments = $course->assignments_count;
 
-    return response()->json(['data' => $course], 200);
-}
+    return response()->json(['course' => $course], 200);
 
-    private function calculateCourseProgress($course, $user)
-    {
-        $totalLessons = $course->lessons_count;
-        if ($totalLessons === 0) return 0;
-        
-        $completedLessons = $user->completedLessons()->where('course_id', $course->id)->count();
-        return round(($completedLessons / $totalLessons) * 100);
+    
+}
+public function getCourseSubmissions(Request $request, $id)
+{
+    $user = $request->user();
+
+    if ($user->role !== 'teacher') {
+        return response()->json([
+            'message' => 'Unauthorized. Only teachers can access this endpoint.'
+        ], 403);
     }
+
+    $course = $user->teacherCourses()
+        ->where('courses.id', $id)
+        ->first();
+
+    if (!$course) {
+        return response()->json(['message' => 'Course not found'], 404);
+    }
+
+    $submissions = Submission::whereHas('assignment', function($query) use ($id) {
+            $query->where('course_id', $id);
+        })
+        ->with(['assignment', 'student'])
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    return response()->json(['submissions' => $submissions], 200);
+}
 }

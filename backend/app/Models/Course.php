@@ -20,9 +20,7 @@ class Course extends Model
     public function students()
     {
         return $this->belongsToMany(User::class, 'enrollments', 'course_id', 'student_id')
-            ->join('users', 'enrollments.student_id', '=', 'users.id')
-            ->where('users.role', '=', 'student')
-            ->select('users.*');
+            ->where('users.role', '=', 'student');
     }
 
     
@@ -44,5 +42,10 @@ class Course extends Model
     public function getLessonCountAttribute()
     {
         return $this->lessons()->count();
+    }
+
+    public function assignments()
+    {
+        return $this->hasMany(Assignment::class);
     }
 }

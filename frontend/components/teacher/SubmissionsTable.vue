@@ -81,9 +81,8 @@
           size="small" 
           color="secondary" 
           variant="text" 
-          :href="item.file_url"
-          target="_blank"
-          download
+          @click="downloadFile(item.id, item.filename)"
+          :loading="downloadingId === item.id"
         >
           <v-icon>mdi-download</v-icon>
         </v-btn>
@@ -112,6 +111,9 @@ interface SubmissionWithRelations extends Submission {
   }
 }
 
+const config = useRuntimeConfig()
+const downloadingId = ref<number | null>(null)
+
 defineProps<{
   submissions: SubmissionWithRelations[]
 }>()
@@ -129,6 +131,32 @@ const headers = [
   { title: 'Grade', key: 'grade' },
   { title: 'Actions', key: 'actions', sortable: false }
 ]
+
+const downloadFile = async (submissionId: number, filename?: string) => {
+  downloadingId.value = submissionId
+  try {
+    const response = await $fetch(`${config.public.apiBase}/submissions/${submissionId}/download`, {
+      method: 'GET',
+      responseType: 'blob'
+    })
+
+    const blob = new Blob([response as BlobPart], { type: 'application/octet-stream' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename || 'submission_file'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+  } catch (error) {
+    console.error('Download failed:', error)
+    alert('Failed to download file')
+  } finally {
+    downloadingId.value = null
+  }
+}
 
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return 'N/A'

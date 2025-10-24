@@ -19,13 +19,13 @@ export interface Course {
     teacher_id: number | null 
     created_at: Date | string
     updated_at: Date | string
-    progress?: number
     image?: string
     students_count?: number
     lessons_count?: number
     teacher_name?: string
     lessons?: Lesson[]
     thumbnail?: string
+    assignments?: Assignment[]
 }
 
 export interface Lesson {
@@ -34,7 +34,15 @@ export interface Lesson {
     title: string
     lesson_code: string
     content: string
-
+    created_at: Date | string
+    updated_at: Date | string
+    attachments?: Array<{
+        id: number
+        file_name: string
+        file_url: string
+        file_type: string
+        file_size: number
+    }>
 }
 
 export interface Assignment {
@@ -51,8 +59,22 @@ export interface Submission {
     assignment_id: number | null
     student_id: number | null
     file_url: string
+    mimetype?: string
+    filename?: string
     status: 'submitted' | 'late' | 'not submitted'
     grade: number | null
     created_at: Date | string
     updated_at: Date | string
+}
+
+export interface Enrollment {
+    id: number
+    course_id: number | null
+    student_id: number | null
+}
+
+export interface AdminLoginResponse {
+  user: User
+  token: string
+  message: string
 }

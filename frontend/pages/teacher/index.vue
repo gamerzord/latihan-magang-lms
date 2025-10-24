@@ -27,7 +27,7 @@
         <div>
           <h1 class="text-h4 font-weight-bold mb-1">My Teaching Courses</h1>
           <p class="text-body-1 text-medium-emphasis mb-0">
-            Welcome back, {{ auth.user.value?.name || 'Teacher' }}! Manage your courses and track student progress.
+            Welcome back, {{ auth.user.value?.name || 'Teacher' }}! Manage your courses and track student submissions.
           </p>
         </div>
 
@@ -46,12 +46,6 @@
           <v-btn color="primary" variant="flat" @click="createCourse">
             <v-icon start>mdi-plus</v-icon>
             Create Course
-          </v-btn>
-
-          <!-- Logout Button -->
-          <v-btn color="error" variant="outlined" @click="logoutTeacher" class="ml-2">
-            <v-icon start>mdi-logout</v-icon>
-            Logout
           </v-btn>
         </div>
       </v-col>
@@ -120,62 +114,13 @@
 
       <!-- List View -->
       <template v-else>
-        <v-col cols="12">
-          <v-card elevation="2">
-            <v-list>
-              <v-list-item
-                v-for="course in courses"
-                :key="course.id"
-                class="py-4"
-              >
-                <template #prepend>
-                  <v-avatar size="60" rounded class="mr-4">
-                    <v-img
-                      :src="course.thumbnail || '/placeholder-course.jpg'"
-                      cover
-                    />
-                  </v-avatar>
-                </template>
-
-                <v-list-item-title class="text-h6 mb-1">
-                  {{ course.title }}
-                </v-list-item-title>
-                <v-list-item-subtitle class="text-body-2 mb-2">
-                  {{ course.students_count || 0 }} students • {{ course.lessons_count || 0 }} lessons
-                </v-list-item-subtitle>
-                <v-list-item-subtitle class="text-body-2">
-                  {{ course.description || 'No description available.' }}
-                </v-list-item-subtitle>
-
-                <template #append>
-                  <div class="d-flex align-center gap-2">
-                    <v-btn 
-                      color="primary" 
-                      variant="text" 
-                      @click="viewSubmissions(course)"
-                    >
-                      <v-icon start>mdi-format-list-checks</v-icon>
-                      Submissions
-                    </v-btn>
-                    <v-btn 
-                      icon 
-                      variant="text"
-                      @click="editCourse(course)"
-                    >
-                      <v-icon>mdi-pencil</v-icon>
-                    </v-btn>
-                    <v-btn 
-                      icon 
-                      variant="text"
-                      @click="goToCourse(course.id)"
-                    >
-                      <v-icon>mdi-arrow-right</v-icon>
-                    </v-btn>
-                  </div>
-                </template>
-              </v-list-item>
-            </v-list>
-          </v-card>
+        <v-col>
+          <TeacherCourseList
+          :courses="courses"
+          @open="goToCourse"
+          @edit="editCourse"
+          @submissions="viewSubmissions"
+          />
         </v-col>
       </template>
 
@@ -237,13 +182,13 @@ const loadCourses = async () => {
   error.value = null
 
   try {
-    const { data, error: fetchError } = await useFetch<{ data: Course[] }>(
+    const { data, error: fetchError } = await useFetch<{ courses: Course[] }>(
       `${config.public.apiBase}/teacher/courses`, {
       }
     )
 
     if (fetchError.value) throw new Error(fetchError.value.message)
-    courses.value = data.value?.data || []
+    courses.value = data.value?.courses || []
   } catch (err: any) {
     console.error('Error loading courses:', err)
     error.value = err.message || 'An unexpected error occurred'
@@ -261,6 +206,7 @@ const fetchSubmissions = async (courseId: number) => {
     )
     
     if (fetchError.value) throw fetchError.value
+    selectedSubmissions.value = data.value?.submissions || []
     selectedCourse.value = courses.value.find(c => c.id === courseId) || null
     showSubmissions.value = true
   } catch (err) {
@@ -291,23 +237,11 @@ const viewSubmissions = (course: Course) => {
   fetchSubmissions(course.id)
 }
 
-const logoutTeacher = async () => {
-  await auth.logout()
-}
-
-onMounted(async () => {
+useAutoRefresh(async () => {
   if (!auth.authenticated.value) {
     await auth.fetchUser()
   }
   await loadCourses()
-  
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) loadCourses()
-  })
-})
-
-onUnmounted(() => {
-  document.removeEventListener('visibilitychange', loadCourses)
 })
 </script>
 
@@ -315,6 +249,7 @@ onUnmounted(() => {
 .text-truncate-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

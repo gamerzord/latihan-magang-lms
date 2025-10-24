@@ -106,15 +106,6 @@ class AssignmentController extends Controller
             );
         }
 
-        if($assignment->course()->exists()) {
-            return response()->json(
-                [
-                    'message' => 'Cannot Delete Assignment if Course Still Exist',
-                ],
-                422,
-            );
-        }
-
         $assignment->delete();
 
         return response()->json(
