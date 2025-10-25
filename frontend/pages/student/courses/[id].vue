@@ -46,11 +46,11 @@
                         <!-- Lesson Content -->
                         <div class="lesson-content">
 
-                        <!-- Text Content -->
+                          <!-- Text Content -->
                           <div v-if="lesson.content" class="mb-4">
                             <p class="text-caption text-medium-emphasis mb-2">Lesson Content:</p>
                             <div class="text-body-2 lesson-text" style="white-space: pre-wrap;">
-                            {{ extractLessonText(lesson.content) }}
+                              {{ extractLessonText(lesson.content) }}
                             </div>
                           </div>
 
@@ -68,22 +68,38 @@
                             ></iframe>
                           </div>
 
-                          <!-- File Attachments -->
+                          <!-- PDF Embed -->
+                          <div v-if="isPdfUrl(lesson.content)" class="mb-4">
+                            <p class="text-caption text-medium-emphasis mb-2">PDF Document:</p>
+                            <iframe
+                              width="100%"
+                              height="500"
+                              :src="getProcessedPdfUrl(lesson.content)"
+                              frameborder="0"
+                              class="pdf-iframe rounded-lg"
+                            ></iframe>
+                            <div class="d-flex justify-end mt-2">
+                              <v-btn
+                                variant="outlined"
+                                size="small"
+                                :href="lesson.content"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <v-icon start>mdi-download</v-icon>
+                                Download PDF
+                              </v-btn>
+                            </div>
+                          </div>
+
+                          <!-- File Attachments with Embeds -->
                           <div v-if="lesson.attachments?.length" class="mb-4">
-                            <p class="text-caption text-medium-emphasis mb-2">Download Materials:</p>
+                            <p class="text-caption text-medium-emphasis mb-2">Materials:</p>
                             <v-list density="compact" class="bg-grey-lighten-4 rounded-lg">
                               <v-list-item
                                 v-for="attachment in lesson.attachments"
                                 :key="attachment.id"
-                                :href="attachment.file_url"
-                                target="_blank"
-                                download
                               >
-                                <template #prepend>
-                                  <v-icon :color="getFileIconColor(attachment.file_type)">
-                                    {{ getFileIcon(attachment.file_type) }}
-                                  </v-icon>
-                                </template>
                                 
                                 <v-list-item-title class="text-body-2">
                                   {{ attachment.file_name || 'Download File' }}
@@ -92,19 +108,6 @@
                                 <v-list-item-subtitle class="text-caption">
                                   {{ formatFileSize(attachment.file_size) }}
                                 </v-list-item-subtitle>
-
-                                <template #append>
-                                  <v-btn
-                                    icon
-                                    variant="text"
-                                    size="small"
-                                    :href="attachment.file_url"
-                                    target="_blank"
-                                    download
-                                  >
-                                    <v-icon>mdi-download</v-icon>
-                                  </v-btn>
-                                </template>
                               </v-list-item>
                             </v-list>
                           </div>
@@ -138,9 +141,9 @@
               </v-card-text>
 
               <StudentAssignmentsList 
-              v-if="user?.id"
-              :course-id="course.id" 
-              :student-id="user.id" 
+                v-if="user?.id"
+                :course-id="course.id" 
+                :student-id="user.id" 
               />
               
             </template>
@@ -172,11 +175,59 @@ const { data, pending } = await useFetch<{ course: Course }>(
 
 const course = computed(() => data.value?.course)
 
-const extractLessonText = (content: string) => {
-  if (!content) return ''
-  return content.replace(/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]+/g, '').trim()
+const isPdfUrl = (url: string) => {
+  if (!url) return false
+  const content = url.toLowerCase()
+  return content
 }
 
+const getProcessedPdfUrl = (url: string) => {
+  if (!url) return ''
+  
+  const service = detectPdfService(url)
+  
+  switch (service) {
+    case 'dropbox':
+      return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+               .replace('?dl=0', '')
+    
+    case 'google-drive':
+      const fileId = extractGoogleDriveFileId(url)
+      return `https://drive.google.com/file/d/${fileId}/preview`
+    
+    case 'direct':
+    default:
+      return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+  }
+}
+
+const detectPdfService = (url: string): 'dropbox' | 'google-drive' | 'direct' => {
+  if (url.includes('drive.google.com')) return 'google-drive'
+  if (url.includes('dropbox.com')) return 'dropbox'
+  return 'direct'
+}
+
+const extractGoogleDriveFileId = (url: string): string => {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)\//,
+    /id=([a-zA-Z0-9_-]+)/
+  ]
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match && match[1]) return match[1]
+  }
+  
+  return url
+}
+
+const extractLessonText = (content: string) => {
+  if (!content) return ''
+  return content.replace(/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]+/g, '')
+                .replace(/https?:\/\/[^\s]+\.pdf(\?[^\s]*)?/g, '')
+                .trim()
+}
 
 const getYouTubeVideoId = (url: string) => {
   if (!url) return null
@@ -194,20 +245,6 @@ const getYouTubeVideoId = (url: string) => {
   }
   
   return null
-}
-
-const getFileIcon = (fileType: string) => {
-  const iconMap: Record<string, string> = {
-    'pdf': 'mdi-file-pdf-box',
-  }
-  return iconMap[fileType?.toLowerCase()] || 'mdi-file'
-}
-
-const getFileIconColor = (fileType: string) => {
-  const colorMap: Record<string, string> = {
-    'pdf': 'red',
-  }
-  return colorMap[fileType?.toLowerCase()] || 'grey'
 }
 
 const formatFileSize = (bytes: number) => {
@@ -249,5 +286,23 @@ const formatDate = (dateString: Date | string) => {
 
 .border-t {
   border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.pdf-iframe {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+.file-embed-container {
+  height: 80vh;
+  width: 100%;
+}
+
+.file-iframe {
+  border: none;
+}
+
+.gap-1 {
+  gap: 4px;
 }
 </style>

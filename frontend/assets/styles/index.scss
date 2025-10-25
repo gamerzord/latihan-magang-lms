@@ -66,3 +66,8 @@ body {
 .shadow-soft {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
 }
+
+.v-data-table {
+  table-layout: fixed;
+  border-radius: 0 0 12px 12px;
+}

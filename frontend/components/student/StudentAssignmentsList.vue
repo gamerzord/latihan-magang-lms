@@ -156,12 +156,12 @@ const formatDate = (dateString: string | Date) => {
 }
 
 const headers = [
-  { title: 'Title', key: 'title'},
-  { title: 'Due Date', key: 'due_date'},
-  { title: 'Status', key: 'status'},
-  { title: 'Grade', key: 'grade'},
-  { title: 'Action', key: 'actions'}
-]
+  { title: 'Title', key: 'title', align: 'center', sortable: true },
+  { title: 'Due Date', key: 'due_date', align: 'center', sortable: false },
+  { title: 'Status', key: 'status', align: 'center', sortable: true },
+  { title: 'Grade', key: 'grade', align: 'center', sortable: true },
+  { title: 'Action', key: 'actions', align: 'center', sortable: false }
+] as const
 
 const showDialog = ref(false)
 const selectedAssignment = ref<Assignment | null>(null)
@@ -193,7 +193,6 @@ const submitAssignment = async () => {
       body: formData,
       headers: {
         'Accept': 'application/json',
-        // Don't set Content-Type - let browser set it with boundary for FormData
       },
     })
 

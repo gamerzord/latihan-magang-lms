@@ -9,15 +9,22 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-  public function index()
+  public function index(Request $request)
   {
-    return response()->json(User::all(), 200);
-  }
+    $users = User::when($request->role, function ($query, $role) {
+        return $query->where('role', $role);
+    })->get();
 
-  public function show(User $user)
-  {
-    return response()->json($user, 200);
-  }
+    return response()->json([
+        'users' => $users
+    ]);  }
+
+    public function show(User $user)
+    {
+        return response()->json([
+            'user' => $user
+        ], 200);
+    }
 
   public function register(Request $request)
   {

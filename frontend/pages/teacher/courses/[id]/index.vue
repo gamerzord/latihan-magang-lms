@@ -206,8 +206,43 @@
               ></iframe>
             </div>
 
+                <!-- PDF Preview -->
+            <div v-else-if="isPdfUrl">
+              <p class="text-caption text-medium-emphasis mb-2">PDF Document:</p>
+
+                  <!-- Service-specific instructions -->
+              <v-alert v-if="detectedService" :type="serviceInstructions ? 'info' : 'success'" density="compact" class="mb-2">
+                <div v-if="serviceInstructions" class="text-caption">
+                  {{ serviceInstructions }}
+                </div>
+                <div v-else class="text-caption">
+                  ✓ Direct PDF link detected
+                </div>
+              </v-alert>
+
+              <iframe
+                width="100%"
+                height="500"
+                :src="processedPdfUrl"
+                frameborder="0"
+                class="pdf-iframe"
+              ></iframe>
+              <div class="d-flex justify-end mt-2">
+                <v-btn
+                  variant="outlined"
+                  size="small"
+                  :href="processedPdfUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <v-icon start>mdi-download</v-icon>
+                  Download PDF
+                </v-btn>
+              </div>
+            </div>
+
             <!-- Content Preview -->
-            <div v-if="lessonForm.content && !youtubeVideoId" class="mb-4">
+            <div v-if="lessonForm.content && !youtubeVideoId && !isPdfUrl" class="mb-4">
               <p class="text-caption text-medium-emphasis mb-2">Content Preview:</p>
               <v-card variant="outlined" class="pa-3">
                 <div class="text-body-2" style="white-space: pre-wrap;">{{ lessonForm.content }}</div>
@@ -291,6 +326,76 @@ const deletingLesson = ref(false)
 const lessonFormValid = ref(false)
 const lessonToDelete = ref<Lesson | null>(null)
 
+const isPdfUrl = computed(() => {
+  if (!lessonForm.value.content) return false
+  const content = lessonForm.value.content.toLowerCase()
+  return content
+})
+
+const processedPdfUrl = computed(() => {
+  if (!lessonForm.value.content) return ''
+  
+  const url = lessonForm.value.content.trim()
+  const service = detectPdfService(url)
+  
+  switch (service) {
+    case 'dropbox':
+      return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+               .replace('?dl=0', '')
+    
+    case 'google-drive':
+      const fileId = extractGoogleDriveFileId(url)
+      return `https://drive.google.com/file/d/${fileId}/preview`
+    
+    case 'direct':
+    default:
+      return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+  }
+})
+
+const extractGoogleDriveFileId = (url: string): string => {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /\/d\/([a-zA-Z0-9_-]+)\//,
+    /id=([a-zA-Z0-9_-]+)/
+  ]
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match && match[1]) return match[1]
+  }
+  
+  return url
+}
+
+
+const detectedService = computed(() => {
+  if (!lessonForm.value.content) return null
+  return detectPdfService(lessonForm.value.content.trim())
+})
+
+const serviceInstructions = computed(() => {
+  const service = detectedService.value
+  const url = lessonForm.value.content.trim()
+  
+  switch (service) {
+    case 'dropbox':
+      return 'Dropbox link detected. For better results, use the direct download link.'
+    
+    case 'google-drive':
+      return 'Google Drive link detected. Make sure sharing is set to "Anyone with the link".'
+    
+    default:
+      return null
+  }
+})
+
+const detectPdfService = (url: string): 'dropbox' | 'google-drive' | 'direct' => {
+  if (url.includes('dropbox.com')) return 'dropbox'
+  if (url.includes('drive.google.com')) return 'google-drive'
+  return 'direct'
+}
+
 const lessonForm = ref({
   title: '',
   lesson_code: '',
@@ -303,7 +408,7 @@ const requiredRule = (value: string) => {
 }
 
 const youtubeVideoId = computed(() => {
-  if (!lessonForm.value.content) return null
+  if (!lessonForm.value.content || isPdfUrl.value) return null
   
   const text = lessonForm.value.content
   

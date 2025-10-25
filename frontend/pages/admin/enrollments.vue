@@ -3,16 +3,17 @@
     <v-row>
       <v-col cols="12">
         <v-card elevation="2" class="card">
+          <!-- Header -->
           <v-card-title class="d-flex justify-space-between align-center card-header">
             <div class="d-flex align-center">
-              <span class="text-h5 font-weight-bold">Course Management</span>
+              <span class="text-h5 font-weight-bold">Enrollment Management</span>
               <v-tooltip location="bottom">
                 <template #activator="{ props }">
                   <v-icon v-bind="props" color="grey" class="ml-2" size="small">
                     mdi-information
                   </v-icon>
                 </template>
-                <span>Manage available courses, teachers, and content</span>
+                <span>Manage student enrollments in available courses</span>
               </v-tooltip>
             </div>
 
@@ -28,43 +29,49 @@
             </div>
           </v-card-title>
 
+          <!-- Table -->
           <v-card-text class="pa-0">
             <v-data-table
               :headers="headers"
-              :items="courses || []"
+              :items="enrollments || []"
               :loading="pending"
               item-value="id"
               class="elevation-0"
-              loading-text="Loading courses..."
-              no-data-text="No courses found"
-              items-per-page-text="Courses per page:"
+              loading-text="Loading enrollments..."
+              no-data-text="No enrollments found"
+              items-per-page-text="Enrollments per page:"
               :items-per-page-options="[10, 25, 50, 100]"
             >
-              <!-- Teacher Column -->
-              <template #item.teacher="{ item }">
-                <v-chip color="blue-lighten-3" size="small">
-                  <v-icon start small>mdi-account-tie</v-icon>
-                  {{ item.teacher_name || 'Unknown' }}
-                </v-chip>
+              <!-- Course Column -->
+              <template #item.course="{ item }">
+                <div class="d-flex justify-center">
+                  <v-chip color="blue-lighten-3" size="small">
+                    <v-icon start small>mdi-book-open-variant</v-icon>
+                    {{ item.course?.title || 'Unknown Course' }}
+                  </v-chip>
+                </div>
               </template>
 
-              <!-- Actions Column -->
-              <template #item.actions="{ item }">
-                <div>
-                  <v-btn
-                    color="primary"
-                    size="small"
-                    variant="text"
-                    icon
-                    @click="goToEdit(item.id)"
-                    :loading="loading && currentActionId === item.id"
-                  >
-                    <v-icon size="small">mdi-pencil</v-icon>
-                    <v-tooltip activator="parent" location="top">
-                      Edit Course
-                    </v-tooltip>
-                  </v-btn>
+              <!-- Student Column -->
+              <template #item.student="{ item }">
+                <div class="d-flex justify-center">
+                  <v-chip color="green-lighten-3" size="small">
+                    <v-icon start small>mdi-account</v-icon>
+                    {{ item.student?.name || 'Unknown Student' }}
+                  </v-chip>
+                </div>
+              </template>
 
+              <!-- Created Date -->
+              <template #item.created_at="{ item }">
+                <div class="text-center">
+                  {{ new Date(item.created_at).toLocaleString() }}
+                </div>
+              </template>
+
+              <!-- Actions -->
+              <template #item.actions="{ item }">
+                <div class="d-flex justify-center">
                   <v-btn
                     color="error"
                     size="small"
@@ -75,7 +82,7 @@
                   >
                     <v-icon size="small">mdi-delete</v-icon>
                     <v-tooltip activator="parent" location="top">
-                      Delete Course
+                      Delete Enrollment
                     </v-tooltip>
                   </v-btn>
                 </div>
@@ -101,11 +108,13 @@
 
         <v-card-text class="pt-4">
           <p class="text-body-1">
-            Are you sure you want to delete the course
-            <strong>"{{ courseToDelete?.title }}"</strong>?
+            Are you sure you want to delete this enrollment of
+            <strong>{{ enrollmentToDelete?.student?.name }}</strong>
+            in
+            <strong>"{{ enrollmentToDelete?.course?.title }}"</strong>?
           </p>
           <p class="text-caption text-medium-emphasis mt-2">
-            This action cannot be undone and will permanently remove this course.
+            This action cannot be undone.
           </p>
         </v-card-text>
 
@@ -114,8 +123,8 @@
           <v-btn variant="text" @click="deleteDialog = false" :disabled="loading">
             Cancel
           </v-btn>
-          <v-btn color="error" @click="deleteCourse" :loading="loading" variant="flat">
-            Delete Course
+          <v-btn color="error" @click="deleteEnrollment" :loading="loading" variant="flat">
+            Delete Enrollment
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -132,13 +141,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Course } from '~/types/models'
+import type { Enrollment } from '~/types/models'
 
 const config = useRuntimeConfig()
 const loading = ref(false)
 const currentActionId = ref<number | null>(null)
 const deleteDialog = ref(false)
-const courseToDelete = ref<Course | null>(null)
+const enrollmentToDelete = ref<Enrollment | null>(null)
 
 const snackbar = ref({
   show: false,
@@ -147,25 +156,20 @@ const snackbar = ref({
   icon: 'mdi-check-circle'
 })
 
-const { data, pending, refresh } = await useFetch<{ courses: Course[] }>(
-  `${config.public.apiBase}/courses`
+const { data, pending, refresh } = await useFetch<{ enrollments: Enrollment[] }>(
+  `${config.public.apiBase}/enrollments`
 )
-
-const courses = computed(() => data.value?.courses || [])
+const enrollments = computed(() => data.value?.enrollments || [])
 
 const headers = [
-  { title: 'ID', key: 'id', align:'center', sortable: true },
-  { title: 'Title', key: 'title', align:'center', sortable: true },
-  { title: 'Course Code', key: 'course_code', align:'center', sortable: true },
-  { title: 'Teacher', key: 'teacher', align:'center', sortable: false },
-  { title: 'Students', key: 'students_count', align:'center', sortable: true },
-  { title: 'Lessons', key: 'lessons_count', align:'center', sortable: true },
-  { title: 'Created At', key: 'created_at', align:'center', sortable: true },
-  { title: 'Actions', key: 'actions', align:'center', sortable: false },
+  { title: 'ID', key: 'id', align: 'center', sortable: true },
+  { title: 'Course', key: 'course', align: 'center', sortable: false },
+  { title: 'Student', key: 'student', align: 'center', sortable: false },
+  { title: 'Created At', key: 'created_at', align: 'center', sortable: true },
+  { title: 'Actions', key: 'actions', align: 'center', sortable: false }
 ] as const
 
-const goToEdit = (id: number) => navigateTo(`/admin/courses/${id}/edit`)
-
+// Snackbar helper
 const showSnackbar = (message: string, type: 'success' | 'error' = 'success') => {
   Object.assign(snackbar.value, {
     show: true,
@@ -175,30 +179,30 @@ const showSnackbar = (message: string, type: 'success' | 'error' = 'success') =>
   })
 }
 
-const confirmDelete = (course: Course) => {
-  courseToDelete.value = course
+const confirmDelete = (enrollment: Enrollment) => {
+  enrollmentToDelete.value = enrollment
   deleteDialog.value = true
 }
 
-const deleteCourse = async () => {
-  if (!courseToDelete.value) return
+const deleteEnrollment = async () => {
+  if (!enrollmentToDelete.value) return
   loading.value = true
-  currentActionId.value = courseToDelete.value.id
+  currentActionId.value = enrollmentToDelete.value.id
 
   try {
-    await $fetch(`${config.public.apiBase}/courses/${courseToDelete.value.id}`, {
-      method: 'DELETE',
+    await $fetch(`${config.public.apiBase}/enrollments/${enrollmentToDelete.value.id}`, {
+      method: 'DELETE'
     })
 
-    if (courses.value) {
-      data.value!.courses = data.value!.courses.filter(c => c.id !== courseToDelete.value?.id)
-    }
+    data.value!.enrollments = data.value!.enrollments.filter(
+      e => e.id !== enrollmentToDelete.value?.id
+    )
 
-    showSnackbar('Course deleted successfully')
+    showSnackbar('Enrollment deleted successfully')
     deleteDialog.value = false
-    courseToDelete.value = null
+    enrollmentToDelete.value = null
   } catch (err: any) {
-    showSnackbar(err?.data?.message || 'Failed to delete course', 'error')
+    showSnackbar(err?.data?.message || 'Failed to delete enrollment', 'error')
   } finally {
     loading.value = false
     currentActionId.value = null
@@ -206,7 +210,7 @@ const deleteCourse = async () => {
 }
 
 useHead({
-  title: 'Course Management'
+  title: 'Enrollment Management'
 })
 </script>
 

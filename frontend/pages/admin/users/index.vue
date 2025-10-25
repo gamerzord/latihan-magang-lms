@@ -35,12 +35,13 @@
               :items="users || []"
               :loading="pending"
               item-value="id"
-              class="elevation-0 data-table"
+              class="elevation-0"
               loading-text="Loading users..."
               no-data-text="No users found"
               items-per-page-text="Users per page:"
               :items-per-page-options="[10, 25, 50, 100]"
             >
+            
               <!-- Role Column -->
               <template #item.role="{ item }">
                 <v-chip
@@ -55,12 +56,12 @@
 
               <!-- Actions Column -->
               <template #item.actions="{ item }">
-                <div class="d-flex gap-1">
+                <div>
                   <v-btn
                     color="primary"
                     size="small"
                     variant="text"
-                    icon
+                    icon0
                     @click="goToEdit(item.id)"
                     :loading="loading && currentActionId === item.id"
                   >
@@ -153,14 +154,12 @@ const ROLE_COLORS = {
   admin: 'deep-purple',
   teacher: 'blue',
   student: 'green',
-  moderator: 'orange'
 } as const
 
 const ROLE_ICONS = {
   admin: 'mdi-shield-account',
   teacher: 'mdi-human-male-board',
   student: 'mdi-school',
-  moderator: 'mdi-modern-account'
 } as const
 
 const loading = ref(false)
@@ -177,17 +176,19 @@ const snackbar = ref({
 
 const config = useRuntimeConfig()
 
-const { data: users, pending, refresh } =
-  await useFetch<User[]>(`${config.public.apiBase}/users`, {
+const { data, pending, refresh } =
+  await useFetch<{ users: User[]}>(`${config.public.apiBase}/users`, {
   })
-
+const users = computed(() => data.value?.users)
 const headers = [
-  { title: 'ID', key: 'id', sortable: true },
-  { title: 'Name', key: 'name', sortable: true },
-  { title: 'Email', key: 'email', sortable: true },
-  { title: 'Role', key: 'role', sortable: true },
-  { title: 'Actions', key: 'actions', sortable: false},
-]
+  { title: 'ID', key: 'id', align:'center', sortable: true },
+  { title: 'Name', key: 'name', align: 'center', sortable: true },
+  { title: 'Email', key: 'email', align: 'center', sortable: true },
+  { title: 'Role', key: 'role', align: 'center', sortable: true },
+  { title: 'Actions', key: 'actions', align: 'center', sortable: false},
+] as const
+
+const goToEdit = (id: number) => navigateTo(`/admin/users/${id}/edit`)
 
 const getRoleColor = (role: string) => ROLE_COLORS[role as keyof typeof ROLE_COLORS] || 'grey'
 const getRoleIcon = (role: string) => ROLE_ICONS[role as keyof typeof ROLE_ICONS] || 'mdi-account'
@@ -227,7 +228,7 @@ const deleteUser = async () => {
     })
 
     if (users.value) {
-      users.value = users.value.filter(u => u.id !== userToDelete.value?.id)
+      data.value!.users = users.value.filter(u => u.id !== userToDelete.value?.id)
     }
 
     showSnackbar('User deleted successfully')
@@ -240,8 +241,6 @@ const deleteUser = async () => {
     currentActionId.value = null
   }
 }
-
-const goToEdit = (id: number) => navigateTo(`/admin/users/${id}/edit`)
 
 useHead({
   title: 'User Management'
@@ -268,15 +267,7 @@ useHead({
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.data-table {
-  border-radius: 0 0 12px 12px;
-}
-
 .gap-2 {
   gap: 8px;
-}
-
-.gap-1 {
-  gap: 4px;
 }
 </style>

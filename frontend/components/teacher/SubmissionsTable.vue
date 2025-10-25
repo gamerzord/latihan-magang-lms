@@ -14,7 +14,7 @@
       density="comfortable"
       class="elevation-1"
     >
-      <!-- Student Info Column -->
+      <!-- Student Info -->
       <template #item.student="{ item }">
         <div v-if="item.student">
           <strong>{{ item.student.name }}</strong>
@@ -22,69 +22,59 @@
             {{ item.student.email }}
           </div>
         </div>
-        <div v-else class="text-medium-emphasis">
-          Unknown Student
-        </div>
+        <div v-else class="text-medium-emphasis">Unknown Student</div>
       </template>
 
-      <!-- Assignment Column -->
+      <!-- Assignment -->
       <template #item.assignment="{ item }">
         <div v-if="item.assignment">
           {{ item.assignment.title }}
         </div>
-        <div v-else class="text-medium-emphasis">
-          Unknown Assignment
-        </div>
+        <div v-else class="text-medium-emphasis">Unknown Assignment</div>
       </template>
 
-      <!-- Submitted At Column -->
+      <!-- Date -->
       <template #item.submitted_at="{ item }">
         {{ formatDate(item.created_at) }}
       </template>
 
-      <!-- Status Column -->
+      <!-- Status -->
       <template #item.status="{ item }">
-        <v-chip
-          size="small"
-          :color="getStatusColor(item.status)"
-          variant="outlined"
-        >
+        <v-chip size="small" :color="getStatusColor(item.status)" variant="outlined">
           {{ formatStatus(item.status) }}
         </v-chip>
       </template>
 
-      <!-- Grade Column -->
+      <!-- Grade -->
       <template #item.grade="{ item }">
         <span v-if="item.grade !== null" class="font-weight-bold">
           {{ item.grade }}/100
         </span>
-        <span v-else class="text-medium-emphasis">
-          Not graded
-        </span>
+        <span v-else class="text-medium-emphasis">Not graded</span>
       </template>
 
-      <!-- Actions Column -->
+      <!-- Actions -->
       <template #item.actions="{ item }">
-        <v-btn 
-          icon 
-          size="small" 
-          color="primary" 
-          variant="text" 
-          @click="$emit('view', item)"
-          :disabled="!item.file_url"
-        >
-          <v-icon>mdi-eye</v-icon>
-        </v-btn>
-        <v-btn 
+        <v-btn
           v-if="item.file_url"
-          icon 
-          size="small" 
-          color="secondary" 
-          variant="text" 
+          icon
+          size="small"
+          color="secondary"
+          variant="text"
           @click="downloadFile(item.id, item.filename)"
           :loading="downloadingId === item.id"
         >
           <v-icon>mdi-download</v-icon>
+        </v-btn>
+
+        <v-btn
+          icon
+          size="small"
+          color="primary"
+          variant="text"
+          @click="openGradeDialog(item)"
+        >
+          <v-icon>mdi-pencil</v-icon>
         </v-btn>
       </template>
 
@@ -95,6 +85,44 @@
         </div>
       </template>
     </v-data-table>
+
+    <!-- Grade Dialog -->
+    <v-dialog v-model="gradeDialog" max-width="400px">
+      <v-card>
+        <v-card-title class="font-weight-bold">Grade Submission</v-card-title>
+        <v-card-text>
+          <div v-if="selectedSubmission">
+            <p>
+              <strong>Student:</strong> {{ selectedSubmission.student?.name }}
+              <br />
+              <strong>Assignment:</strong> {{ selectedSubmission.assignment?.title }}
+            </p>
+            <v-text-field
+              v-model.number="gradeValue"
+              type="number"
+              label="Grade (0 - 100)"
+              min="0"
+              max="100"
+              outlined
+              required
+            />
+            <v-select
+              v-model="statusValue"
+              :items="['submitted', 'late', 'not_submitted']"
+              label="Status"
+              outlined
+            />
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="d-flex justify-end">
+          <v-btn variant="text" @click="gradeDialog = false">Cancel</v-btn>
+          <v-btn color="primary" @click="submitGrade" :loading="grading">
+            Save
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-card>
 </template>
 
@@ -102,35 +130,35 @@
 import type { Submission } from '~/types/models'
 
 interface SubmissionWithRelations extends Submission {
-  student?: {
-    name: string
-    email: string
-  }
-  assignment?: {
-    title: string
-  }
+  student?: { name: string; email: string }
+  assignment?: { title: string }
 }
 
 const config = useRuntimeConfig()
 const downloadingId = ref<number | null>(null)
+const gradeDialog = ref(false)
+const grading = ref(false)
+const selectedSubmission = ref<SubmissionWithRelations | null>(null)
+const gradeValue = ref<number | null>(null)
+const statusValue = ref<string>('submitted')
 
 defineProps<{
   submissions: SubmissionWithRelations[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   view: [submission: SubmissionWithRelations]
   refresh: []
 }>()
 
 const headers = [
-  { title: 'Student', key: 'student' },
-  { title: 'Assignment', key: 'assignment' },
-  { title: 'Submitted At', key: 'submitted_at' },
-  { title: 'Status', key: 'status' },
-  { title: 'Grade', key: 'grade' },
-  { title: 'Actions', key: 'actions', sortable: false }
-]
+  { title: 'Student', key: 'student', align: 'center' },
+  { title: 'Assignment', key: 'assignment', align: 'center' },
+  { title: 'Submitted At', key: 'submitted_at', align: 'center' },
+  { title: 'Status', key: 'status', align: 'center' },
+  { title: 'Grade', key: 'grade', align: 'center' },
+  { title: 'Actions', key: 'actions', sortable: false, align: 'center' }
+] as const
 
 const downloadFile = async (submissionId: number, filename?: string) => {
   downloadingId.value = submissionId
@@ -139,7 +167,6 @@ const downloadFile = async (submissionId: number, filename?: string) => {
       method: 'GET',
       responseType: 'blob'
     })
-
     const blob = new Blob([response as BlobPart], { type: 'application/octet-stream' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -149,7 +176,6 @@ const downloadFile = async (submissionId: number, filename?: string) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    
   } catch (error) {
     console.error('Download failed:', error)
     alert('Failed to download file')
@@ -158,9 +184,40 @@ const downloadFile = async (submissionId: number, filename?: string) => {
   }
 }
 
+const openGradeDialog = (submission: SubmissionWithRelations) => {
+  selectedSubmission.value = submission
+  gradeValue.value = submission.grade ?? 0
+  statusValue.value = submission.status ?? 'submitted'
+  gradeDialog.value = true
+}
+
+const submitGrade = async () => {
+  if (!selectedSubmission.value || gradeValue.value === null) return
+
+  grading.value = true
+  try {
+    await $fetch(`${config.public.apiBase}/submissions/${selectedSubmission.value.id}`, {
+      method: 'PUT',
+      body: {
+        assignment_id: selectedSubmission.value.assignment_id,
+        student_id: selectedSubmission.value.student_id,
+        grade: gradeValue.value,
+        status: statusValue.value
+      }
+    })
+    alert('Grade saved successfully')
+    gradeDialog.value = false
+    emit('refresh')
+  } catch (err) {
+    console.error(err)
+    alert('Failed to save grade')
+  } finally {
+    grading.value = false
+  }
+}
+
 const formatDate = (dateString: Date | string) => {
   if (!dateString) return 'N/A'
-  
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -173,18 +230,18 @@ const formatDate = (dateString: Date | string) => {
 
 const formatStatus = (status: string) => {
   const statusMap: Record<string, string> = {
-    'submitted': 'Submitted',
-    'late': 'Late',
-    'not submitted': 'Not Submitted'
+    submitted: 'Submitted',
+    late: 'Late',
+    not_submitted: 'Not Submitted'
   }
   return statusMap[status] || status
 }
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
-    'submitted': 'blue',
-    'late': 'orange',
-    'not submitted': 'grey'
+    submitted: 'blue',
+    late: 'orange',
+    not_submitted: 'grey'
   }
   return colorMap[status] || 'grey'
 }

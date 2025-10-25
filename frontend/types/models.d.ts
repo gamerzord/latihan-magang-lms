@@ -52,6 +52,7 @@ export interface Assignment {
     assignment_code: string
     description: string
     due_date: Date | string
+    status?: string
 }
 
 export interface Submission {
@@ -71,6 +72,9 @@ export interface Enrollment {
     id: number
     course_id: number | null
     student_id: number | null
+    course?: Course
+    created_at: Date | string
+    student?: User
 }
 
 export interface AdminLoginResponse {

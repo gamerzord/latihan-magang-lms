@@ -104,15 +104,6 @@ class LessonController extends Controller
             );
         }
 
-        if($lesson->course()->exists()) {
-            return response()->json(
-                [
-                    'message' => 'Cannot delete Lesson with existing Courses',
-                ],
-                422,
-            );
-        }
-
         $lesson->delete();
 
         return response()->json(

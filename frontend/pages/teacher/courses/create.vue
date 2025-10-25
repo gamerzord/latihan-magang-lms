@@ -4,14 +4,6 @@
     <v-row>
       <v-col cols="12">
         <div class="d-flex align-center mb-2">
-          <v-btn
-            icon
-            variant="text"
-            class="mr-2"
-            @click="$router.back()"
-          >
-            <v-icon>mdi-arrow-left</v-icon>
-          </v-btn>
           <h1 class="text-h4 font-weight-bold">Create New Course</h1>
         </div>
         <p class="text-body-1 text-medium-emphasis">
