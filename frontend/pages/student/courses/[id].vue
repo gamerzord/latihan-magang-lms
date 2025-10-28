@@ -177,8 +177,14 @@ const course = computed(() => data.value?.course)
 
 const isPdfUrl = (url: string) => {
   if (!url) return false
-  const content = url.toLowerCase()
-  return content
+  
+  const content = url.trim()
+  const service = detectPdfService(content)
+  
+  const isKnownService = service === 'dropbox' || service === 'google-drive'
+  const isDirectPdf = service === 'direct' && content.toLowerCase().endsWith('.pdf')
+  
+  return isKnownService || isDirectPdf
 }
 
 const getProcessedPdfUrl = (url: string) => {
@@ -224,9 +230,22 @@ const extractGoogleDriveFileId = (url: string): string => {
 
 const extractLessonText = (content: string) => {
   if (!content) return ''
-  return content.replace(/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]+/g, '')
-                .replace(/https?:\/\/[^\s]+\.pdf(\?[^\s]*)?/g, '')
-                .trim()
+  
+  let text = content.replace(/https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]+/g, '')
+  
+  const lines = text.split('\n')
+  const filteredLines = lines.filter(line => {
+    const trimmedLine = line.trim()
+    if (!trimmedLine) return true
+    
+    const service = detectPdfService(trimmedLine)
+    const isKnownService = service === 'dropbox' || service === 'google-drive'
+    const isDirectPdf = service === 'direct' && trimmedLine.toLowerCase().endsWith('.pdf')
+    
+    return !(isKnownService || isDirectPdf)
+  })
+  
+  return filteredLines.join('\n').trim()
 }
 
 const getYouTubeVideoId = (url: string) => {

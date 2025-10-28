@@ -328,8 +328,13 @@ const lessonToDelete = ref<Lesson | null>(null)
 
 const isPdfUrl = computed(() => {
   if (!lessonForm.value.content) return false
-  const content = lessonForm.value.content.toLowerCase()
-  return content
+  
+  const content = lessonForm.value.content.trim()
+  const service = detectPdfService(content)
+  const isKnownService = service === 'dropbox' || service === 'google-drive'
+  const isDirectPdf = service === 'direct' && content.toLowerCase().endsWith('.pdf')
+  
+  return isKnownService || isDirectPdf
 })
 
 const processedPdfUrl = computed(() => {
