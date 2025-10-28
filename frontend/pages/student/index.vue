@@ -22,6 +22,7 @@
 
     <!-- Main Content -->
     <v-row v-else>
+      <!-- Header with View Toggle -->
       <v-col cols="12" class="d-flex justify-space-between align-center mb-6">
         <h1 class="text-h4 font-weight-bold mb-0">My Courses</h1>
 
@@ -36,57 +37,69 @@
         </v-btn-toggle>
       </v-col>
 
-      <!-- Grid View -->
-      <template v-if="viewMode === 'grid'">
-        <v-col
-          v-for="course in courses"
-          :key="course.id"
-          cols="12"
-          sm="6"
-          md="4"
-          lg="3"
-          class="d-flex"
-        >
-          <v-card 
-            class="pa-4 flex-grow-1 hover-card"
-            elevation="3"
-            @click="goToCourse(course.id)"
-          >
-            <v-img
-              :src="course.thumbnail || '/placeholder-course.jpg'"
-              height="160"
-              class="rounded-lg mb-3"
-              cover
-            />
-            <v-card-title class="text-h6 mb-1">
-              {{ course.title }}
-            </v-card-title>
-            <v-card-subtitle class="text-body-2 text-medium-emphasis mb-2">
-              {{ course.teacher_name || 'Unknown Instructor' }}
-            </v-card-subtitle>
-            <v-card-text class="text-body-2 text-truncate-2">
-              {{ course.description || 'No description available.' }}
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </template>
+      <!-- Assignment Calendar -->
+      <v-col cols="12" md="4" lg="3">
+        <StudentAssignmentCalendar ref="calendarRef" />
+      </v-col>
 
-      <!-- List View -->
-      <template v-else>
-        <StudentCourseList :courses="courses" />
-      </template>
+      <!-- Courses Section -->
+      <v-col cols="12" md="8" lg="9">
+        <v-row>
+          <!-- Grid View -->
+          <template v-if="viewMode === 'grid'">
+            <v-col
+              v-for="course in courses"
+              :key="course.id"
+              cols="12"
+              sm="6"
+              md="6"
+              lg="4"
+              class="d-flex"
+            >
+              <v-card 
+                class="pa-4 flex-grow-1 hover-card"
+                elevation="3"
+                @click="goToCourse(course.id)"
+              >
+                <v-img
+                  :src="course.thumbnail || '/placeholder-course.jpg'"
+                  height="160"
+                  class="rounded-lg mb-3"
+                  cover
+                />
+                <v-card-title class="text-h6 mb-1">
+                  {{ course.title }}
+                </v-card-title>
+                <v-card-subtitle class="text-body-2 text-medium-emphasis mb-2">
+                  {{ course.teacher_name || 'Unknown Instructor' }}
+                </v-card-subtitle>
+                <v-card-text class="text-body-2 text-truncate-2">
+                  {{ course.description || 'No description available.' }}
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </template>
 
-      <!-- Empty State -->
-      <v-col v-if="!courses.length" cols="12" class="text-center py-12">
-        <v-icon size="64" color="grey-lighten-1" class="mb-4">mdi-school-outline</v-icon>
-        <h3 class="text-h6 text-medium-emphasis mb-2">No courses enrolled</h3>
-        <p class="text-body-2 text-medium-emphasis">
-          You haven't enrolled in any courses yet.
-        </p>
-        <v-btn color="primary" class="mt-4" to="/student/courses">
-          <v-icon start>mdi-book-search</v-icon>
-          Browse Available Courses
-        </v-btn>
+          <!-- List View -->
+          <template v-else>
+            <v-col cols="12">
+              <StudentCourseList :courses="courses" />
+            </v-col>
+          </template>
+
+          <!-- Empty State -->
+          <v-col v-if="!courses.length" cols="12" class="text-center py-12">
+            <v-icon size="64" color="grey-lighten-1" class="mb-4">mdi-school-outline</v-icon>
+            <h3 class="text-h6 text-medium-emphasis mb-2">No courses enrolled</h3>
+            <p class="text-body-2 text-medium-emphasis">
+              You haven't enrolled in any courses yet.
+            </p>
+            <v-btn color="primary" class="mt-4" to="/student/courses">
+              <v-icon start>mdi-book-search</v-icon>
+              Browse Available Courses
+            </v-btn>
+          </v-col>
+        </v-row>
       </v-col>
     </v-row>
   </v-container>
@@ -94,12 +107,14 @@
 
 <script setup lang="ts">
 import type { Course } from '~/types/models'
+
 const { fetchUser } = useAuth()
 const config = useRuntimeConfig()
 const courses = ref<Course[]>([])
 const pending = ref(true)
 const error = ref<string | null>(null)
 const viewMode = ref<'grid' | 'list'>('grid')
+const calendarRef = ref()
 
 const loadCourses = async () => {
   pending.value = true
@@ -107,8 +122,7 @@ const loadCourses = async () => {
 
   try {
     const { data, error: fetchError } = await useFetch<{ courses: Course[] }>(
-      `${config.public.apiBase}/student/courses`, {
-      }
+      `${config.public.apiBase}/student/courses`
     )
 
     if (fetchError.value) throw new Error(fetchError.value.message)
@@ -128,8 +142,11 @@ const goToCourse = (id: number) => {
 useAutoRefresh(async () => {
   await fetchUser()
   await loadCourses()
+  // Refresh calendar when page refreshes
+  if (calendarRef.value) {
+    await calendarRef.value.refresh()
+  }
 })
-
 </script>
 
 <style scoped>
@@ -145,6 +162,7 @@ useAutoRefresh(async () => {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   cursor: pointer;
 }
+
 .hover-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
