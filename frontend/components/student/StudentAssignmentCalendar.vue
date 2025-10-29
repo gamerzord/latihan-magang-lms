@@ -94,7 +94,7 @@
           <v-card>
             <v-card-title class="d-flex justify-space-between align-center">
               <span>Assignments Due: {{ selectedDate }}</span>
-              <v-btn icon variant="text" @click="dialog = false">
+              <v-btn icon variant="text" size="small" @click="dialog = false">
                 <v-icon>mdi-close</v-icon>
               </v-btn>
             </v-card-title>
@@ -116,7 +116,7 @@
                     {{ assignment.title }}
                   </v-list-item-title>
                   <v-list-item-subtitle>
-                    {{ assignment.course?.title || 'Unknown Course' }}
+                    {{ getCourseTitle(assignment.course_id) }}
                   </v-list-item-subtitle>
                   <template v-slot:append>
                     <v-chip
@@ -138,31 +138,19 @@
 </template>
 
 <script setup lang="ts">
-import type { Assignment } from '~/types/models'
-
-interface CalendarDay {
-  date: number
-  fullDate: Date
-  isCurrentMonth: boolean
-  isToday: boolean
-  assignments: Assignment[]
-}
+import type { Assignment, Course, CalendarDay, StudentCoursesResponse} from '~/types/models'
 
 const config = useRuntimeConfig()
-const router = useRouter()
 
-// State
 const loading = ref(true)
-const assignments = ref<Assignment[]>([])
+const courses = ref<Course[]>([])
 const currentDate = ref(new Date())
 const dialog = ref(false)
 const selectedAssignments = ref<Assignment[]>([])
 const selectedDate = ref('')
 
-// Day headers
 const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// Computed
 const currentMonthYear = computed(() => {
   return currentDate.value.toLocaleDateString('en-US', { 
     month: 'long', 
@@ -170,10 +158,25 @@ const currentMonthYear = computed(() => {
   })
 })
 
+const allAssignments = computed(() => {
+  const assignments: Assignment[] = []
+  courses.value.forEach(course => {
+    if (course.assignments?.length) {
+      course.assignments.forEach(assignment => {
+        assignments.push({
+          ...assignment,
+          course_id: course.id
+        })
+      })
+    }
+  })
+  return assignments
+})
+
 const upcomingCount = computed(() => {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  return assignments.value.filter(a => {
+  return allAssignments.value.filter(a => {
     const dueDate = new Date(a.due_date)
     dueDate.setHours(0, 0, 0, 0)
     return dueDate >= now
@@ -194,7 +197,6 @@ const calendarDays = computed(() => {
   
   const days: CalendarDay[] = []
   
-  // Previous month days
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
     const date = prevLastDate - i
     const fullDate = new Date(year, month - 1, date)
@@ -207,7 +209,6 @@ const calendarDays = computed(() => {
     })
   }
   
-  // Current month days
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
@@ -224,8 +225,7 @@ const calendarDays = computed(() => {
     })
   }
   
-  // Next month days
-  const remainingDays = 42 - days.length // 6 rows × 7 days
+  const remainingDays = 42 - days.length
   for (let date = 1; date <= remainingDays; date++) {
     const fullDate = new Date(year, month + 1, date)
     days.push({
@@ -240,16 +240,15 @@ const calendarDays = computed(() => {
   return days
 })
 
-// Methods
 const loadAssignments = async () => {
   loading.value = true
   try {
-    const { data, error } = await useFetch<{ assignments: Assignment[] }>(
-      `${config.public.apiBase}/student/assignments`
+    const { data, error } = await useFetch<StudentCoursesResponse>(
+      `${config.public.apiBase}/student/courses`
     )
     
     if (error.value) throw new Error(error.value.message)
-    assignments.value = data.value?.assignments || []
+    courses.value = data.value?.courses || []
   } catch (err) {
     console.error('Error loading assignments:', err)
   } finally {
@@ -259,11 +258,17 @@ const loadAssignments = async () => {
 
 const getAssignmentsForDate = (date: Date): Assignment[] => {
   const dateStr = date.toISOString().split('T')[0]
-  return assignments.value.filter(assignment => {
+  return allAssignments.value.filter(assignment => {
     const dueDate = new Date(assignment.due_date)
     const dueDateStr = dueDate.toISOString().split('T')[0]
     return dueDateStr === dateStr
   })
+}
+
+const getCourseTitle = (courseId: number | null): string => {
+  if (!courseId) return 'Unknown Course'
+  const course = courses.value.find(c => c.id === courseId)
+  return course?.title || 'Unknown Course'
 }
 
 const showAssignments = (day: CalendarDay) => {
@@ -279,7 +284,7 @@ const showAssignments = (day: CalendarDay) => {
 
 const goToAssignment = (assignment: Assignment) => {
   dialog.value = false
-  router.push(`/student/courses/${assignment.course_id}/assignments/${assignment.id}`)
+  navigateTo(`/student/courses/${assignment.course_id}`)
 }
 
 const previousMonth = () => {
@@ -326,12 +331,10 @@ const getStatusText = (dueDate: string): string => {
   return `${diffDays} days left`
 }
 
-// Initialize
 onMounted(() => {
   loadAssignments()
 })
 
-// Auto refresh
 defineExpose({
   refresh: loadAssignments
 })
@@ -410,7 +413,6 @@ defineExpose({
   background-color: rgba(var(--v-theme-primary), 0.05);
 }
 
-/* Responsive */
 @media (max-width: 600px) {
   .calendar-day-header,
   .day-number {

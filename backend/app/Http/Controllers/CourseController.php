@@ -8,39 +8,39 @@ use App\Models\Submission;
 
 class CourseController extends Controller
 {
-public function index() {
-    $user = auth()->user();
-    
-    if ($user->role === 'student') {
-        $courses = Course::with('teacher')
-            ->withCount(['students', 'lessons'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($course){
-            $course->teacher_name = $course->teacher->name ?? 'Unknown';
-            return $course;
-        }); 
-    } else if ($user->role === 'teacher') {
-        $courses = Course::where('teacher_id', $user->id)
-            ->with('teacher')
-            ->withCount(['students', 'lessons'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-    } else {
-        $courses = Course::with('teacher')
-            ->withCount(['students', 'lessons'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($course){
-            $course->teacher_name = $course->teacher->name ?? 'Unknown';
-            return $course;
-        }); 
-    }
+    public function index() {
+        $user = auth()->user();
+        
+        if ($user->role === 'student') {
+            $courses = Course::with('teacher')
+                ->withCount(['students', 'lessons'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($course){
+                $course->teacher_name = $course->teacher->name ?? 'Unknown';
+                return $course;
+            }); 
+        } else if ($user->role === 'teacher') {
+            $courses = Course::where('teacher_id', $user->id)
+                ->with('teacher')
+                ->withCount(['students', 'lessons'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            $courses = Course::with('teacher')
+                ->withCount(['students', 'lessons'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($course){
+                $course->teacher_name = $course->teacher->name ?? 'Unknown';
+                return $course;
+            }); 
+        }
 
-    return response()->json([
-        'courses' => $courses,
-    ], 200);
-}
+        return response()->json([
+            'courses' => $courses,
+        ], 200);
+    }
 
     public function store(Request $request) {
         $data = $request->validate([
@@ -70,7 +70,6 @@ public function index() {
         }
 
         $user = auth()->user();
-
 
         return response()->json([
             'course' => $course,
@@ -123,130 +122,135 @@ public function index() {
         ], 200);
     }
     
+    // UPDATED: Added 'assignments' to eager loading
     public function studentCourses(Request $request)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    if ($user->role !== 'student') {
-        return response()->json([
-            'message' => 'Unauthorized. Only students can access this endpoint.'
-        ], 403);
+        if ($user->role !== 'student') {
+            return response()->json([
+                'message' => 'Unauthorized. Only students can access this endpoint.'
+            ], 403);
+        }
+
+        $courses = $user->studentCourses()
+            ->with([
+                'teacher',
+                'assignments' => function ($query) {
+                    $query->orderBy('due_date', 'asc');
+                }
+            ])
+            ->withCount(['students', 'lessons', 'assignments'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($course){
+                $course->teacher_name = $course->teacher->name ?? 'Unknown';
+                return $course;
+            }); 
+
+        return response()->json(['courses' => $courses], 200);
     }
 
-    $courses = $user->studentCourses()
-        ->with(['teacher'])
-        ->withCount(['students', 'lessons'])
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->map(function ($course){
-            $course->teacher_name = $course->teacher->name ?? 'Unknown';
-            return $course;
-        }); 
+    public function showStudentCourse(Request $request, $id)
+    {
+        $user = $request->user();
 
-    return response()->json(['courses' => $courses], 200);
-}
+        if ($user->role !== 'student') {
+            return response()->json([
+                'message' => 'Unauthorized. Only students can access this endpoint.'
+            ], 403);
+        }
 
-public function showStudentCourse(Request $request, $id)
-{
-    $user = $request->user();
+        $course = $user->studentCourses()
+            ->where('courses.id', $id)
+            ->with(['teacher', 'lessons', 'assignments'])
+            ->withCount(['students', 'lessons', 'assignments'])
+            ->first();
 
-    if ($user->role !== 'student') {
-        return response()->json([
-            'message' => 'Unauthorized. Only students can access this endpoint.'
-        ], 403);
+        if (!$course) {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $course->teacher_name = $course->teacher->name ?? 'Unknown';
+
+        return response()->json(['course' => $course], 200);
     }
 
-    $course = $user->studentCourses()
-        ->where('courses.id', $id)
-        ->with(['teacher', 'lessons', 'assignments'])
-        ->withCount(['students', 'lessons', 'assignments'])
-        ->first();
+    public function teacherCourses(Request $request)
+    {
+        $user = $request->user();
 
-    if (!$course) {
-        return response()->json(['message' => 'Course not found'], 404);
+        if ($user->role !== 'teacher') {
+            return response()->json([
+                'message' => 'Unauthorized. Only teachers can access this endpoint.'
+            ], 403);
+        }
+
+        $courses = $user->teacherCourses()
+            ->withCount(['students', 'lessons'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($course) {
+                $course->students_count = $course->students_count ?? 0;
+                $course->lessons_count = $course->lessons_count ?? 0;
+                return $course;
+            });
+
+        return response()->json(['courses' => $courses], 200);
     }
 
-    $course->teacher_name = $course->teacher->name ?? 'Unknown';
+    public function showTeacherCourse(Request $request, $id)
+    {
+        $user = $request->user();
 
-    return response()->json(['course' => $course], 200);
-}
+        if ($user->role !== 'teacher') {
+            return response()->json([
+                'message' => 'Unauthorized. Only teachers can access this endpoint.'
+            ], 403);
+        }
 
-public function teacherCourses(Request $request)
-{
-    $user = $request->user();
+        $course = $user->teacherCourses()
+            ->where('courses.id', $id)
+            ->with(['students', 'lessons', 'assignments'])
+            ->withCount(['students', 'lessons', 'assignments'])
+            ->first();
 
-    if ($user->role !== 'teacher') {
-        return response()->json([
-            'message' => 'Unauthorized. Only teachers can access this endpoint.'
-        ], 403);
+        if (!$course) {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $course->total_students = $course->students_count;
+        $course->total_lessons = $course->lessons_count;
+        $course->total_assignments = $course->assignments_count;
+
+        return response()->json(['course' => $course], 200);
     }
 
-    $courses = $user->teacherCourses()
-        ->withCount(['students', 'lessons'])
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->map(function ($course) {
-            $course->students_count = $course->students_count ?? 0;
-            $course->lessons_count = $course->lessons_count ?? 0;
-            return $course;
-        });
+    public function getCourseSubmissions(Request $request, $id)
+    {
+        $user = $request->user();
 
-    return response()->json(['courses' => $courses], 200);
-}
+        if ($user->role !== 'teacher') {
+            return response()->json([
+                'message' => 'Unauthorized. Only teachers can access this endpoint.'
+            ], 403);
+        }
 
-public function showTeacherCourse(Request $request, $id)
-{
-    $user = $request->user();
+        $course = $user->teacherCourses()
+            ->where('courses.id', $id)
+            ->first();
 
-    if ($user->role !== 'teacher') {
-        return response()->json([
-            'message' => 'Unauthorized. Only teachers can access this endpoint.'
-        ], 403);
+        if (!$course) {
+            return response()->json(['message' => 'Course not found'], 404);
+        }
+
+        $submissions = Submission::whereHas('assignment', function($query) use ($id) {
+                $query->where('course_id', $id);
+            })
+            ->with(['assignment', 'student'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json(['submissions' => $submissions], 200);
     }
-
-    $course = $user->teacherCourses()
-        ->where('courses.id', $id)
-        ->with(['students', 'lessons', 'assignments'])
-        ->withCount(['students', 'lessons', 'assignments'])
-        ->first();
-
-    if (!$course) {
-        return response()->json(['message' => 'Course not found'], 404);
-    }
-
-    $course->total_students = $course->students_count;
-    $course->total_lessons = $course->lessons_count;
-    $course->total_assignments = $course->assignments_count;
-
-    return response()->json(['course' => $course], 200);
-
-    
-}
-public function getCourseSubmissions(Request $request, $id)
-{
-    $user = $request->user();
-
-    if ($user->role !== 'teacher') {
-        return response()->json([
-            'message' => 'Unauthorized. Only teachers can access this endpoint.'
-        ], 403);
-    }
-
-    $course = $user->teacherCourses()
-        ->where('courses.id', $id)
-        ->first();
-
-    if (!$course) {
-        return response()->json(['message' => 'Course not found'], 404);
-    }
-
-    $submissions = Submission::whereHas('assignment', function($query) use ($id) {
-            $query->where('course_id', $id);
-        })
-        ->with(['assignment', 'student'])
-        ->orderBy('created_at', 'desc')
-        ->get();
-
-    return response()->json(['submissions' => $submissions], 200);
-}
 }

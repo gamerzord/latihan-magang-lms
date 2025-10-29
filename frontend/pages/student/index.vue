@@ -142,7 +142,6 @@ const goToCourse = (id: number) => {
 useAutoRefresh(async () => {
   await fetchUser()
   await loadCourses()
-  // Refresh calendar when page refreshes
   if (calendarRef.value) {
     await calendarRef.value.refresh()
   }

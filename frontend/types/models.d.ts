@@ -83,3 +83,15 @@ export interface AdminLoginResponse {
   token: string
   message: string
 }
+
+export interface CalendarDay {
+  date: number
+  fullDate: Date
+  isCurrentMonth: boolean
+  isToday: boolean
+  assignments: Assignment[]
+}
+
+export interface StudentCoursesResponse {
+  courses: Course[]
+}

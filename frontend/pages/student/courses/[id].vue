@@ -169,11 +169,17 @@ const route = useRoute()
 const config = useRuntimeConfig()
 const { user } = useAuth()
 
-const { data, pending } = await useFetch<{ course: Course }>(
+const  { data, pending, refresh } = await useFetch<{ course: Course }>(
   `${config.public.apiBase}/student/courses/${route.params.id}`,
 )
 
 const course = computed(() => data.value?.course)
+
+useAutoRefresh(async () => {
+  if (!data.value) {
+    refresh()
+  }
+})
 
 const isPdfUrl = (url: string) => {
   if (!url) return false
