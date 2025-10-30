@@ -157,6 +157,7 @@ const formatDate = (dateString: string | Date) => {
 
 const headers = [
   { title: 'Title', key: 'title', align: 'center', sortable: true },
+  { title: 'Description', key: 'description', align: 'center', sortable: false },
   { title: 'Due Date', key: 'due_date', align: 'center', sortable: false },
   { title: 'Status', key: 'status', align: 'center', sortable: true },
   { title: 'Grade', key: 'grade', align: 'center', sortable: true },

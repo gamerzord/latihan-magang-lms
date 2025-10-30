@@ -65,89 +65,42 @@
               {
                 'other-month': !day.isCurrentMonth,
                 'today': day.isToday,
-                'has-assignment': day.assignments.length > 0
+                'has-assignment': day.assignments.length > 0,
+                'selected': selectedDay?.fullDate.getTime() === day.fullDate.getTime()
               }
             ]"
-            @click="day.assignments.length > 0 && showAssignments(day)"
+            @click="selectDate(day)"
           >
             <span class="day-number">{{ day.date }}</span>
             <div v-if="day.assignments.length > 0" class="assignment-indicator">
-              <v-tooltip location="top">
-                <template v-slot:activator="{ props }">
-                  <v-badge
-                    :content="day.assignments.length"
-                    color="error"
-                    inline
-                    v-bind="props"
-                  >
-                    <v-icon size="small" color="error">mdi-clipboard-text</v-icon>
-                  </v-badge>
-                </template>
-                <span>{{ day.assignments.length }} assignment(s) due</span>
-              </v-tooltip>
+              <v-badge
+                :content="day.assignments.length"
+                color="error"
+                inline
+              >
+                <v-icon size="small" color="error">mdi-clipboard-text</v-icon>
+              </v-badge>
             </div>
           </div>
         </div>
-
-        <!-- Assignment Details Dialog -->
-        <v-dialog v-model="dialog" max-width="600">
-          <v-card>
-            <v-card-title class="d-flex justify-space-between align-center">
-              <span>Assignments Due: {{ selectedDate }}</span>
-              <v-btn icon variant="text" size="small" @click="dialog = false">
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-            </v-card-title>
-            <v-divider />
-            <v-card-text class="pa-0">
-              <v-list>
-                <v-list-item
-                  v-for="assignment in selectedAssignments"
-                  :key="assignment.id"
-                  @click="goToAssignment(assignment)"
-                  class="assignment-list-item"
-                >
-                  <template v-slot:prepend>
-                    <v-avatar color="primary" size="40">
-                      <v-icon>mdi-file-document</v-icon>
-                    </v-avatar>
-                  </template>
-                  <v-list-item-title class="font-weight-medium">
-                    {{ assignment.title }}
-                  </v-list-item-title>
-                  <v-list-item-subtitle>
-                    {{ getCourseTitle(assignment.course_id) }}
-                  </v-list-item-subtitle>
-                  <template v-slot:append>
-                    <v-chip
-                      :color="getStatusColor(assignment.due_date)"
-                      size="small"
-                      variant="flat"
-                    >
-                      {{ getStatusText(assignment.due_date) }}
-                    </v-chip>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </v-card-text>
-          </v-card>
-        </v-dialog>
       </div>
     </v-card-text>
   </v-card>
 </template>
 
 <script setup lang="ts">
-import type { Assignment, Course, CalendarDay, StudentCoursesResponse} from '~/types/models'
+import type { Assignment, Course, CalendarDay, StudentCoursesResponse } from '~/types/models'
 
 const config = useRuntimeConfig()
+
+const emit = defineEmits<{
+  dateSelected: [date: Date, assignments: Assignment[]]
+}>()
 
 const loading = ref(true)
 const courses = ref<Course[]>([])
 const currentDate = ref(new Date())
-const dialog = ref(false)
-const selectedAssignments = ref<Assignment[]>([])
-const selectedDate = ref('')
+const selectedDay = ref<CalendarDay | null>(null)
 
 const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -265,26 +218,9 @@ const getAssignmentsForDate = (date: Date): Assignment[] => {
   })
 }
 
-const getCourseTitle = (courseId: number | null): string => {
-  if (!courseId) return 'Unknown Course'
-  const course = courses.value.find(c => c.id === courseId)
-  return course?.title || 'Unknown Course'
-}
-
-const showAssignments = (day: CalendarDay) => {
-  selectedAssignments.value = day.assignments
-  selectedDate.value = day.fullDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-  dialog.value = true
-}
-
-const goToAssignment = (assignment: Assignment) => {
-  dialog.value = false
-  navigateTo(`/student/courses/${assignment.course_id}`)
+const selectDate = (day: CalendarDay) => {
+  selectedDay.value = day
+  emit('dateSelected', day.fullDate, day.assignments)
 }
 
 const previousMonth = () => {
@@ -301,34 +237,6 @@ const nextMonth = () => {
     currentDate.value.getMonth() + 1,
     1
   )
-}
-
-const getStatusColor = (dueDate: string): string => {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
-  due.setHours(0, 0, 0, 0)
-  
-  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  
-  if (diffDays < 0) return 'error'
-  if (diffDays === 0) return 'warning'
-  if (diffDays <= 3) return 'orange'
-  return 'success'
-}
-
-const getStatusText = (dueDate: string): string => {
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
-  due.setHours(0, 0, 0, 0)
-  
-  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  
-  if (diffDays < 0) return 'Overdue'
-  if (diffDays === 0) return 'Due Today'
-  if (diffDays === 1) return 'Due Tomorrow'
-  return `${diffDays} days left`
 }
 
 onMounted(() => {
@@ -368,7 +276,7 @@ defineExpose({
   padding: 4px;
   border-radius: 8px;
   position: relative;
-  cursor: default;
+  cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
@@ -384,12 +292,16 @@ defineExpose({
 }
 
 .calendar-day.has-assignment {
-  cursor: pointer;
   background-color: rgba(var(--v-theme-error), 0.05);
 }
 
-.calendar-day.has-assignment:hover {
-  background-color: rgba(var(--v-theme-error), 0.1);
+.calendar-day.selected {
+  background-color: rgba(var(--v-theme-primary), 0.2);
+  border: 2px solid rgb(var(--v-theme-primary));
+}
+
+.calendar-day:hover {
+  background-color: rgba(var(--v-theme-primary), 0.1);
   transform: scale(1.05);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -403,14 +315,6 @@ defineExpose({
 .assignment-indicator {
   position: absolute;
   bottom: 4px;
-}
-
-.assignment-list-item {
-  cursor: pointer;
-}
-
-.assignment-list-item:hover {
-  background-color: rgba(var(--v-theme-primary), 0.05);
 }
 
 @media (max-width: 600px) {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ScheduleEventController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -26,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('enrollments', EnrollmentController::class);
     Route::apiResource('assignments', AssignmentController::class);
     Route::apiResource('submissions', SubmissionController::class);
+    Route::apiResource('/student/schedule', ScheduleEventController::class)->except(['show']);
 
     Route::get('/student/courses', [CourseController::class, 'studentCourses']);
     Route::get('/student/courses/{id}', [CourseController::class, 'showStudentCourse']);

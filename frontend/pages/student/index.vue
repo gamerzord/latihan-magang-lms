@@ -37,11 +37,6 @@
         </v-btn-toggle>
       </v-col>
 
-      <!-- Assignment Calendar -->
-      <v-col cols="12" md="4" lg="3">
-        <StudentAssignmentCalendar ref="calendarRef" />
-      </v-col>
-
       <!-- Courses Section -->
       <v-col cols="12" md="8" lg="9">
         <v-row>
@@ -114,7 +109,6 @@ const courses = ref<Course[]>([])
 const pending = ref(true)
 const error = ref<string | null>(null)
 const viewMode = ref<'grid' | 'list'>('grid')
-const calendarRef = ref()
 
 const loadCourses = async () => {
   pending.value = true
@@ -142,9 +136,6 @@ const goToCourse = (id: number) => {
 useAutoRefresh(async () => {
   await fetchUser()
   await loadCourses()
-  if (calendarRef.value) {
-    await calendarRef.value.refresh()
-  }
 })
 </script>
 

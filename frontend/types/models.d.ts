@@ -51,9 +51,9 @@ export interface Assignment {
   title: string
   assignment_code: string
   description: string
-  due_date: string // Fixed typo from 'st' to 'string'
+  due_date: string
   status?: string
-  course?: Course // Added course relation for calendar component
+  course?: Course
 }
 
 export interface Submission {
@@ -94,4 +94,24 @@ export interface CalendarDay {
 
 export interface StudentCoursesResponse {
   courses: Course[]
+}
+
+export interface ScheduleEvent {
+  id: string
+  title: string
+  description?: string
+  category: string
+  start: Date
+  end: Date
+  color: string
+  allDay?: boolean
+}
+
+export interface EventForm {
+  title: string
+  description: string
+  category: string
+  date?: string
+  startTime: string
+  endTime: string
 }

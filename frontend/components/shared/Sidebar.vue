@@ -29,6 +29,7 @@
       <template v-if="user?.role === 'student'">
         <v-list-item to="/student" prepend-icon="mdi-view-dashboard" title="Dashboard" />
         <v-list-item to="/student/courses" prepend-icon="mdi-book-multiple" title="Courses" />
+        <v-list-item to="/student/calendar" prepend-icon="mdi-calendar-blank" title="Calendar" />
       </template>
 
       <template v-else-if="user?.role === 'teacher'">
