@@ -154,120 +154,190 @@
     </v-container>
 
     <!-- Create Lesson Dialog -->
-    <v-dialog v-model="showCreateLessonDialog" max-width="600">
-      <v-card>
-        <v-card-title class="d-flex justify-space-between align-center">
-          <span class="text-h6">Create New Lesson</span>
-          <v-btn icon @click="showCreateLessonDialog = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
+    <v-dialog v-model="showCreateLessonDialog" max-width="700" scrollable>
+    <v-card>
+      <v-card-title class="d-flex justify-space-between align-center">
+        <span class="text-h6">Create New Lesson</span>
+        <v-btn icon @click="closeDialog">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-card-title>
 
-        <v-card-text>
-          <v-form v-model="lessonFormValid" @submit.prevent="createLesson">
-            <v-text-field
-              v-model="lessonForm.title"
-              label="Lesson Title"
-              placeholder="e.g., Introduction to HTML"
-              variant="outlined"
-              :rules="[requiredRule]"
-              class="mb-4"
-            />
+      <v-divider />
 
-            <v-text-field
-              v-model="lessonForm.lesson_code"
-              label="Lesson Code"
-              placeholder="e.g., HTML-01, CSS-BASICS"
-              variant="outlined"
-              :rules="[requiredRule]"
-              class="mb-4"
-              hint="Unique identifier for this lesson"
-              persistent-hint
-            />
+      <v-card-text class="pt-4">
+        <v-form v-model="lessonFormValid" @submit.prevent="createLesson">
+          <v-text-field
+            v-model="lessonForm.title"
+            label="Lesson Title"
+            placeholder="e.g., Introduction to HTML"
+            variant="outlined"
+            :rules="[requiredRule]"
+            class="mb-4"
+          />
 
-            <v-textarea
-              v-model="lessonForm.content"
-              label="Lesson Content"
-              placeholder="Enter lesson content or paste YouTube URLs..."
-              variant="outlined"
-              rows="4"
-              class="mb-2"
-            />
+          <v-text-field
+            v-model="lessonForm.lesson_code"
+            label="Lesson Code"
+            placeholder="e.g., HTML-01, CSS-BASICS"
+            variant="outlined"
+            :rules="[requiredRule]"
+            class="mb-4"
+            hint="Unique identifier for this lesson"
+            persistent-hint
+          />
 
-            <!-- YouTube Preview -->
-            <div v-if="youtubeVideoId" class="mb-4">
-              <p class="text-caption text-medium-emphasis mb-2">YouTube Preview:</p>
-              <iframe
-                width="100%"
-                height="200"
-                :src="`https://www.youtube.com/embed/${youtubeVideoId}`"
-                frameborder="0"
-                allowfullscreen
-              ></iframe>
-            </div>
+          <v-textarea
+            v-model="lessonForm.content"
+            label="Lesson Content"
+            placeholder="Enter lesson content, paste YouTube URLs, or PDF links..."
+            variant="outlined"
+            rows="4"
+            class="mb-4"
+          />
 
-                <!-- PDF Preview -->
-            <div v-else-if="isPdfUrl">
-              <p class="text-caption text-medium-emphasis mb-2">PDF Document:</p>
-
-                  <!-- Service-specific instructions -->
-              <v-alert v-if="detectedService" :type="serviceInstructions ? 'info' : 'success'" density="compact" class="mb-2">
-                <div v-if="serviceInstructions" class="text-caption">
-                  {{ serviceInstructions }}
-                </div>
-                <div v-else class="text-caption">
-                  ✓ Direct PDF link detected
-                </div>
-              </v-alert>
-
-              <iframe
-                width="100%"
-                height="500"
-                :src="processedPdfUrl"
-                frameborder="0"
-                class="pdf-iframe"
-              ></iframe>
-              <div class="d-flex justify-end mt-2">
-                <v-btn
-                  variant="outlined"
-                  size="small"
-                  :href="processedPdfUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <v-icon start>mdi-download</v-icon>
-                  Download PDF
-                </v-btn>
-              </div>
-            </div>
-
-            <!-- Content Preview -->
-            <div v-if="lessonForm.content && !youtubeVideoId && !isPdfUrl" class="mb-4">
-              <p class="text-caption text-medium-emphasis mb-2">Content Preview:</p>
-              <v-card variant="outlined" class="pa-3">
-                <div class="text-body-2" style="white-space: pre-wrap;">{{ lessonForm.content }}</div>
-              </v-card>
-            </div>
-
-            <div class="d-flex gap-2 justify-end">
-              <v-btn variant="outlined" @click="showCreateLessonDialog = false">
-                Cancel
-              </v-btn>
-              <v-btn
-                type="submit"
-                color="primary"
-                variant="flat"
-                :loading="creatingLesson"
-                :disabled="!lessonFormValid || creatingLesson"
+          <!-- File Upload Section -->
+          <v-card variant="outlined" class="mb-4">
+            <v-card-title class="text-subtitle-1">
+              <v-icon class="mr-2">mdi-attachment</v-icon>
+              Attachments
+            </v-card-title>
+            <v-card-text>
+              <v-file-input
+                v-model="selectedFiles"
+                label="Upload Files"
+                placeholder="Select files to upload"
+                variant="outlined"
+                multiple
+                chips
+                show-size
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.zip"
+                prepend-icon="mdi-paperclip"
+                :rules="[fileSizeRule]"
+                @update:model-value="handleFileSelection"
               >
-                <v-icon start>mdi-plus</v-icon>
-                Create Lesson
-              </v-btn>
-            </div>
-          </v-form>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+                <template #selection="{ fileNames }">
+                  <template v-for="(fileName, index) in fileNames" :key="fileName">
+                    <v-chip
+                      v-if="index < 2"
+                      class="me-2"
+                      color="primary"
+                      size="small"
+                      label
+                    >
+                      {{ fileName }}
+                    </v-chip>
+                    <span
+                      v-else-if="index === 2"
+                      class="text-overline text-grey-darken-3 mx-2"
+                    >
+                      +{{ fileNames.length - 2 }} File(s)
+                    </span>
+                  </template>
+                </template>
+              </v-file-input>
+
+              <!-- File Preview List -->
+              <v-list v-if="selectedFiles.length > 0" density="compact" class="mt-2">
+                <v-list-subheader>Selected Files</v-list-subheader>
+                <v-list-item
+                  v-for="(file, index) in selectedFiles"
+                  :key="index"
+                  class="file-preview-item"
+                >
+                  <template #prepend>
+                    <v-icon :color="getFileIconColor(file.type)">
+                      {{ getFileIcon(file.type) }}
+                    </v-icon>
+                  </template>
+                  <v-list-item-title>{{ file.name }}</v-list-item-title>
+                  <v-list-item-subtitle>{{ formatFileSize(file.size) }}</v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon
+                      size="small"
+                      variant="text"
+                      @click="removeFile(index)"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+
+              <v-alert
+                v-if="uploadError"
+                type="error"
+                density="compact"
+                class="mt-2"
+                closable
+                @click:close="uploadError = ''"
+              >
+                {{ uploadError }}
+              </v-alert>
+            </v-card-text>
+          </v-card>
+
+          <!-- Content Previews -->
+          <!-- YouTube Preview -->
+          <div v-if="youtubeVideoId" class="mb-4">
+            <p class="text-caption text-medium-emphasis mb-2">YouTube Preview:</p>
+            <iframe
+              width="100%"
+              height="200"
+              :src="`https://www.youtube.com/embed/${youtubeVideoId}`"
+              frameborder="0"
+              allowfullscreen
+            ></iframe>
+          </div>
+
+          <!-- PDF Preview -->
+          <div v-else-if="isPdfUrl" class="mb-4">
+            <p class="text-caption text-medium-emphasis mb-2">PDF Document Preview:</p>
+            <v-alert v-if="serviceInstructions" type="info" density="compact" class="mb-2">
+              <div class="text-caption">{{ serviceInstructions }}</div>
+            </v-alert>
+            <iframe
+              width="100%"
+              height="300"
+              :src="processedPdfUrl"
+              frameborder="0"
+              class="rounded"
+            ></iframe>
+          </div>
+
+          <!-- Text Content Preview -->
+          <div v-else-if="lessonForm.content && !youtubeVideoId && !isPdfUrl" class="mb-4">
+            <p class="text-caption text-medium-emphasis mb-2">Content Preview:</p>
+            <v-card variant="outlined" class="pa-3">
+              <div class="text-body-2" style="white-space: pre-wrap;">
+                {{ lessonForm.content }}
+              </div>
+            </v-card>
+          </div>
+        </v-form>
+      </v-card-text>
+
+      <v-divider />
+
+      <v-card-actions class="px-4 py-3">
+        <v-spacer />
+        <v-btn variant="outlined" @click="closeDialog" :disabled="creatingLesson">
+          Cancel
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="flat"
+          :loading="creatingLesson"
+          :disabled="!lessonFormValid || creatingLesson"
+          @click="createLesson"
+        >
+          <v-icon start>mdi-plus</v-icon>
+          Create Lesson
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
     <!-- Delete Confirmation Dialog -->
     <v-dialog v-model="showDeleteDialog" max-width="400">
@@ -307,7 +377,8 @@ import TeacherAssignmentsList from '~/components/teacher/TeacherAssignmentsList.
 import type { Course, Lesson } from '~/types/models'
 const showAddAssignmentDialog = ref(false)
 
-
+const selectedFiles = ref<File[]>([])
+const uploadError = ref('')
 const route = useRoute()
 const id = route.params.id
 const successMessage = ref('')
@@ -325,6 +396,56 @@ const creatingLesson = ref(false)
 const deletingLesson = ref(false)
 const lessonFormValid = ref(false)
 const lessonToDelete = ref<Lesson | null>(null)
+
+const handleFileSelection = (files: File | File[]) => {
+  uploadError.value = ''
+  selectedFiles.value = Array.isArray(files) ? files : files ? [files] : []
+}
+
+const removeFile = (index: number) => {
+  selectedFiles.value.splice(index, 1)
+}
+
+const fileSizeRule = (files: File[]) => {
+  if (!files || files.length === 0) return true
+  
+  const maxSize = 10 * 1024 * 1024 // 10MB per file
+  const invalidFile = files.find(file => file.size > maxSize)
+  
+  if (invalidFile) {
+    return `File "${invalidFile.name}" exceeds 10MB limit`
+  }
+  return true
+}
+
+const getFileIcon = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'mdi-file-pdf-box'
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'mdi-file-word'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'mdi-file-excel'
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'mdi-file-powerpoint'
+  if (mimeType.includes('image')) return 'mdi-file-image'
+  if (mimeType.includes('video')) return 'mdi-file-video'
+  if (mimeType.includes('zip') || mimeType.includes('rar')) return 'mdi-folder-zip'
+  return 'mdi-file-document'
+}
+
+const getFileIconColor = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'red'
+  if (mimeType.includes('word')) return 'blue'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'green'
+  if (mimeType.includes('presentation')) return 'orange'
+  if (mimeType.includes('image')) return 'purple'
+  if (mimeType.includes('video')) return 'pink'
+  return 'grey'
+}
+
+const formatFileSize = (bytes: number) => {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
 
 const isPdfUrl = computed(() => {
   if (!lessonForm.value.content) return false
@@ -372,7 +493,6 @@ const extractGoogleDriveFileId = (url: string): string => {
   
   return url
 }
-
 
 const detectedService = computed(() => {
   if (!lessonForm.value.content) return null
@@ -443,31 +563,51 @@ const formatDate = (dateString: Date | string) => {
 }
 
 const createLesson = async () => {
-  successMessage.value = ''  
+  successMessage.value = ''
+  uploadError.value = ''
+  
   if (!lessonFormValid.value) return
 
   creatingLesson.value = true
+  
   try {
+    const formData = new FormData()
+    formData.append('course_id', lessonForm.value.course_id.toString())
+    formData.append('title', lessonForm.value.title)
+    formData.append('lesson_code', lessonForm.value.lesson_code)
+    formData.append('content', lessonForm.value.content)
+    
+    selectedFiles.value.forEach((file, index) => {
+      formData.append(`attachments[${index}]`, file)
+    })
+
     await $fetch(`${config.public.apiBase}/lessons`, {
       method: 'POST',
-      body: lessonForm.value
+      body: formData,
     })
-    lessonForm.value = {
-      title: '',
-      lesson_code: '',
-      content: '',
-      course_id: parseInt(route.params.id as string)
-    }
-    showCreateLessonDialog.value = false
-    
+
+    closeDialog()
     refresh()
     successMessage.value = 'Lesson created successfully!'
+    
   } catch (err: any) {
     console.error('Failed to create lesson:', err)
-    alert(err.data?.message || 'Failed to create lesson. Please try again.')
+    uploadError.value = err.data?.message || 'Failed to create lesson. Please try again.'
   } finally {
     creatingLesson.value = false
   }
+}
+
+const closeDialog = () => {
+  showCreateLessonDialog.value = false
+  lessonForm.value = {
+    title: '',
+    lesson_code: '',
+    content: '',
+    course_id: parseInt(route.params.id as string)
+  }
+  selectedFiles.value = []
+  uploadError.value = ''
 }
 
 const editLesson = (lesson: Lesson) => {
@@ -553,5 +693,13 @@ const deleteAssignment = async (assignment: any) => {
 
 .gap-4 {
   gap: 16px;
+}
+
+.file-preview-item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.file-preview-item:last-child {
+  border-bottom: none;
 }
 </style>

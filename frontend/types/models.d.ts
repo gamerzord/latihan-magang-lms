@@ -30,19 +30,15 @@ export interface Course {
 
 export interface Lesson {
   id: number
-  course_id: number | null
+  course_id: number | null // Allow null
   title: string
   lesson_code: string
   content: string
   created_at: Date | string
   updated_at: Date | string
-  attachments?: Array<{
-    id: number
-    file_name: string
-    file_url: string
-    file_type: string
-    file_size: number
-  }>
+
+  course?: Course
+  attachments?: LessonAttachment[]
 }
 
 export interface Assignment {
@@ -61,7 +57,7 @@ export interface Submission {
   assignment_id: number | null
   student_id: number | null
   file_url: string
-  mimetype?: string
+  mimetype: string
   filename?: string
   status: 'submitted' | 'late' | 'not submitted'
   grade: number | null
@@ -114,4 +110,19 @@ export interface EventForm {
   date?: string
   startTime: string
   endTime: string
+}
+
+export interface LessonAttachment {
+  id: number
+  lesson_id: number
+  file_name: string
+  file_path: string
+  file_url: string
+  file_type: string
+  mime_type: string
+  file_size: number
+  created_at?: string
+  updated_at?: string
+  lessons?: Lesson[]
+  file_size_human?: string
 }

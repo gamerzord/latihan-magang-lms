@@ -92,22 +92,47 @@
                             </div>
                           </div>
 
-                          <!-- File Attachments with Embeds -->
+                          <!-- File Attachments with Download -->
                           <div v-if="lesson.attachments?.length" class="mb-4">
-                            <p class="text-caption text-medium-emphasis mb-2">Materials:</p>
-                            <v-list density="compact" class="bg-grey-lighten-4 rounded-lg">
+                            <p class="text-caption text-medium-emphasis mb-3">
+                              <v-icon small class="mr-1">mdi-paperclip</v-icon>
+                              Course Materials ({{ lesson.attachments.length }})
+                            </p>
+                            <v-list density="compact" class="bg-grey-lighten-5 rounded-lg">
                               <v-list-item
                                 v-for="attachment in lesson.attachments"
                                 :key="attachment.id"
+                                class="attachment-item"
                               >
+                                <template #prepend>
+                                  <v-icon :color="getFileIconColor(attachment.mime_type)">
+                                    {{ getFileIcon(attachment.mime_type) }}
+                                  </v-icon>
+                                </template>
                                 
                                 <v-list-item-title class="text-body-2">
-                                  {{ attachment.file_name || 'Download File' }}
+                                  {{ attachment.file_name }}
                                 </v-list-item-title>
                                 
                                 <v-list-item-subtitle class="text-caption">
-                                  {{ formatFileSize(attachment.file_size) }}
+                                  {{ formatFileSize(attachment.file_size) }} • {{ getFileTypeLabel(attachment.file_type) }}
                                 </v-list-item-subtitle>
+
+                                <template #append>
+                                  <v-btn
+                                    icon
+                                    variant="text"
+                                    size="small"
+                                    color="primary"
+                                    :href="getDownloadUrl(attachment.file_url)"
+                                    target="_blank"
+                                    :loading="downloadingFile === attachment.id"
+                                    :disabled="!attachment.file_url"
+                                    @click="handleAttachmentDownload(attachment.id)"
+                                  >
+                                    <v-icon>mdi-download</v-icon>
+                                  </v-btn>
+                                </template>
                               </v-list-item>
                             </v-list>
                           </div>
@@ -168,6 +193,7 @@ import type { Course } from '~/types/models'
 const route = useRoute()
 const config = useRuntimeConfig()
 const { user } = useAuth()
+const downloadingFile = ref<number | null>(null)
 
 const  { data, pending, refresh } = await useFetch<{ course: Course }>(
   `${config.public.apiBase}/student/courses/${route.params.id}`,
@@ -180,6 +206,55 @@ useAutoRefresh(async () => {
     refresh()
   }
 })
+
+const handleAttachmentDownload = (attachmentId: number) => {
+  downloadingFile.value = attachmentId
+  setTimeout(() => {
+    downloadingFile.value = null
+  }, 2000)
+}
+
+const getDownloadUrl = (fileUrl: string) => {
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+    return fileUrl
+  }
+
+  const baseUrl = config.public.apiBase.replace('/api', '')
+  return `${baseUrl}${fileUrl}`
+}
+
+const getFileIcon = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'mdi-file-pdf-box'
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'mdi-file-word'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'mdi-file-excel'
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'mdi-file-powerpoint'
+  if (mimeType.includes('image')) return 'mdi-file-image'
+  if (mimeType.includes('video')) return 'mdi-file-video'
+  if (mimeType.includes('zip') || mimeType.includes('rar')) return 'mdi-folder-zip'
+  return 'mdi-file-document'
+}
+
+const getFileIconColor = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'red'
+  if (mimeType.includes('word')) return 'blue'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'green'
+  if (mimeType.includes('presentation')) return 'orange'
+  if (mimeType.includes('image')) return 'purple'
+  if (mimeType.includes('video')) return 'pink'
+  return 'grey'
+}
+
+const getFileTypeLabel = (fileType: string) => {
+  const labels: Record<string, string> = {
+    pdf: 'PDF',
+    doc: 'Document',
+    image: 'Image',
+    video: 'Video',
+    audio: 'Audio',
+    other: 'File'
+  }
+  return labels[fileType] || 'File'
+}
 
 const isPdfUrl = (url: string) => {
   if (!url) return false
@@ -318,13 +393,17 @@ const formatDate = (dateString: Date | string) => {
   border-radius: 4px;
 }
 
-.file-embed-container {
-  height: 80vh;
-  width: 100%;
+.attachment-item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  transition: background-color 0.2s ease;
 }
 
-.file-iframe {
-  border: none;
+.attachment-item:last-child {
+  border-bottom: none;
+}
+
+.attachment-item:hover {
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
 .gap-1 {

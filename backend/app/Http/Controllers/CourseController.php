@@ -122,70 +122,64 @@ class CourseController extends Controller
         ], 200);
     }
     
-    // UPDATED: Added 'assignments' to eager loading
-    public function studentCourses(Request $request)
-    {
-        $user = $request->user();
 
-        if ($user->role !== 'student') {
-            return response()->json([
-                'message' => 'Unauthorized. Only students can access this endpoint.'
-            ], 403);
-        }
-
-        $courses = $user->studentCourses()
-            ->with([
-                'teacher',
-                'assignments' => function ($query) {
-                    $query->orderBy('due_date', 'asc');
-                }
-            ])
-            ->withCount(['students', 'lessons', 'assignments'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($course){
-                $course->teacher_name = $course->teacher->name ?? 'Unknown';
-                return $course;
-            }); 
-
-        return response()->json(['courses' => $courses], 200);
+public function studentCourses(Request $request)
+{
+    $user = $request->user();
+    if ($user->role !== 'student') {
+        return response()->json([
+            'message' => 'Unauthorized. Only students can access this endpoint.'
+        ], 403);
     }
+    $courses = $user->studentCourses()
+        ->with([
+            'teacher',
+            'assignments' => function ($query) {
+                $query->orderBy('due_date', 'asc');
+            }
+        ])
+        ->withCount(['students', 'lessons', 'assignments'])
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(function ($course){
+            $course->teacher_name = $course->teacher->name ?? 'Unknown';
+            return $course;
+        }); 
+    return response()->json(['courses' => $courses], 200);
+}
 
     public function showStudentCourse(Request $request, $id)
     {
         $user = $request->user();
-
         if ($user->role !== 'student') {
             return response()->json([
                 'message' => 'Unauthorized. Only students can access this endpoint.'
             ], 403);
         }
-
         $course = $user->studentCourses()
             ->where('courses.id', $id)
-            ->with(['teacher', 'lessons', 'assignments'])
+            ->with([
+                'teacher', 
+                'lessons.attachments',
+                'assignments'
+            ])
             ->withCount(['students', 'lessons', 'assignments'])
             ->first();
-
         if (!$course) {
             return response()->json(['message' => 'Course not found'], 404);
         }
-
         $course->teacher_name = $course->teacher->name ?? 'Unknown';
-
         return response()->json(['course' => $course], 200);
     }
 
     public function teacherCourses(Request $request)
     {
         $user = $request->user();
-
         if ($user->role !== 'teacher') {
             return response()->json([
                 'message' => 'Unauthorized. Only teachers can access this endpoint.'
             ], 403);
         }
-
         $courses = $user->teacherCourses()
             ->withCount(['students', 'lessons'])
             ->orderBy('created_at', 'desc')
@@ -195,34 +189,32 @@ class CourseController extends Controller
                 $course->lessons_count = $course->lessons_count ?? 0;
                 return $course;
             });
-
         return response()->json(['courses' => $courses], 200);
     }
 
     public function showTeacherCourse(Request $request, $id)
     {
         $user = $request->user();
-
         if ($user->role !== 'teacher') {
             return response()->json([
                 'message' => 'Unauthorized. Only teachers can access this endpoint.'
             ], 403);
         }
-
         $course = $user->teacherCourses()
             ->where('courses.id', $id)
-            ->with(['students', 'lessons', 'assignments'])
+            ->with([
+                'students', 
+                'lessons.attachments',
+                'assignments'
+            ])
             ->withCount(['students', 'lessons', 'assignments'])
             ->first();
-
         if (!$course) {
             return response()->json(['message' => 'Course not found'], 404);
         }
-
         $course->total_students = $course->students_count;
         $course->total_lessons = $course->lessons_count;
         $course->total_assignments = $course->assignments_count;
-
         return response()->json(['course' => $course], 200);
     }
 

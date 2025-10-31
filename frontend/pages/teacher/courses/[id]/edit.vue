@@ -126,7 +126,7 @@ const updateCourse = async () => {
     })
 
     successMessage.value = 'Course updated successfully!'
-    setTimeout(() => navigateTo('/admin'), 1500)
+    setTimeout(() => navigateTo('/teacher'), 1500)
   } catch (err: any) {
     console.error('Update Failed', err)
     errorMessage.value = err?.data?.message || 'Failed to update course'

@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Submission;
+use App\Models\Assignment;
 use Illuminate\Support\Facades\Storage;
-
+use Carbon\Carbon;
 
 class SubmissionController extends Controller
 {
@@ -14,6 +15,14 @@ class SubmissionController extends Controller
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
+        }
+
+        if ($request->has('assignment_id')) {
+            $query->where('assignment_id', $request->assignment_id);
+        }
+
+        if ($request->has('student_id')) {
+            $query->where('student_id', $request->student_id);
         }
 
         $submissions = $query->orderBy('created_at', 'desc')->get();
@@ -25,11 +34,33 @@ class SubmissionController extends Controller
         $data = $request->validate([
             'assignment_id' => 'required|exists:assignments,id',
             'student_id' => 'required|exists:users,id',
-            'file' => 'required|file|max:10240', // up to 10MB
+            'file' => 'required|file|max:10240', // max 10MB
         ]);
 
+        // Check if student already submitted
+        $existingSubmission = Submission::where('assignment_id', $data['assignment_id'])
+            ->where('student_id', $data['student_id'])
+            ->first();
+
+        if ($existingSubmission) {
+            return response()->json([
+                'message' => 'You have already submitted this assignment. Use resubmit instead.'
+            ], 422);
+        }
+
+        // Get assignment to check due date
+        $assignment = Assignment::findOrFail($data['assignment_id']);
+        $dueDate = Carbon::parse($assignment->due_date);
+        $now = Carbon::now();
+        
+        // Determine status based on due date
+        $status = $now->greaterThan($dueDate) ? 'late' : 'submitted';
+
         $file = $request->file('file');
-        $filePath = $file->store('submissions', 'public'); // store to storage/app/public/submissions
+        
+        // Generate unique filename
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        $filePath = $file->storeAs('submissions', $fileName, 'public');
 
         $submission = Submission::create([
             'assignment_id' => $data['assignment_id'],
@@ -37,13 +68,13 @@ class SubmissionController extends Controller
             'file_url' => $filePath,
             'filename' => $file->getClientOriginalName(),
             'mimetype' => $file->getClientMimeType(),
-            'status' => 'submitted',
-            'grade' => 0,
+            'status' => $status,
+            'grade' => null,
         ]);
 
         return response()->json([
-            'message' => 'Submission Added Successfully',
-            'submission' => $submission,
+            'message' => 'Assignment submitted successfully',
+            'submission' => $submission->load(['assignment', 'student']),
         ], 201);
     }
 
@@ -65,36 +96,54 @@ class SubmissionController extends Controller
         }
 
         $data = $request->validate([
-            'assignment_id' => 'required|exists:assignments,id',
-            'student_id' => 'required|exists:users,id',
+            'assignment_id' => 'sometimes|exists:assignments,id',
+            'student_id' => 'sometimes|exists:users,id',
             'file' => 'nullable|file|max:10240',
-            'status' => 'required|in:submitted,late,not_submitted',
-            'grade' => 'required|numeric',
+            'status' => 'sometimes|in:submitted,late,not_submitted',
+            'grade' => 'nullable|numeric|min:0|max:100',
         ]);
 
+        // Handle file resubmission
         if ($request->hasFile('file')) {
-            // delete old file if exists
+            // Delete old file
             if ($submission->file_url && Storage::disk('public')->exists($submission->file_url)) {
                 Storage::disk('public')->delete($submission->file_url);
             }
 
             $file = $request->file('file');
-            $filePath = $file->store('submissions', 'public');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $filePath = $file->storeAs('submissions', $fileName, 'public');
 
             $submission->file_url = $filePath;
             $submission->filename = $file->getClientOriginalName();
             $submission->mimetype = $file->getClientMimeType();
+            
+            // Update status based on due date if resubmitting
+            $assignment = Assignment::find($submission->assignment_id);
+            $dueDate = Carbon::parse($assignment->due_date);
+            $now = Carbon::now();
+            $submission->status = $now->greaterThan($dueDate) ? 'late' : 'submitted';
         }
 
-        $submission->assignment_id = $data['assignment_id'];
-        $submission->student_id = $data['student_id'];
-        $submission->status = $data['status'];
-        $submission->grade = $data['grade'];
+        // Update other fields if provided
+        if (isset($data['assignment_id'])) {
+            $submission->assignment_id = $data['assignment_id'];
+        }
+        if (isset($data['student_id'])) {
+            $submission->student_id = $data['student_id'];
+        }
+        if (isset($data['status'])) {
+            $submission->status = $data['status'];
+        }
+        if (isset($data['grade'])) {
+            $submission->grade = $data['grade'];
+        }
+
         $submission->save();
 
         return response()->json([
-            'message' => 'Submission Updated Successfully',
-            'submission' => $submission,
+            'message' => 'Submission updated successfully',
+            'submission' => $submission->load(['assignment', 'student']),
         ], 200);
     }
 
@@ -105,6 +154,7 @@ class SubmissionController extends Controller
             return response()->json(['message' => 'Submission Not Found'], 404);
         }
 
+        // Delete file from storage
         if ($submission->file_url && Storage::disk('public')->exists($submission->file_url)) {
             Storage::disk('public')->delete($submission->file_url);
         }
@@ -114,17 +164,43 @@ class SubmissionController extends Controller
         return response()->json(['message' => 'Submission Deleted Successfully'], 200);
     }
 
-public function download($id) {
-    $submission = Submission::findOrFail($id);
+    public function download($id)
+    {
+        $submission = Submission::findOrFail($id);
 
-    if (!$submission->file_url || !Storage::disk('public')->exists($submission->file_url)) {
-        return response()->json(['message' => 'No file found for this submission'], 404);
+        if (!$submission->file_url || !Storage::disk('public')->exists($submission->file_url)) {
+            return response()->json(['message' => 'File not found'], 404);
+        }
+
+        $path = Storage::disk('public')->path($submission->file_url);
+
+        return response()->download(
+            $path,
+            $submission->filename,
+            ['Content-Type' => $submission->mimetype]
+        );
     }
 
-    return response()->streamDownload(function () use ($submission) {
-        echo Storage::disk('public')->get($submission->file_url);
-    }, $submission->filename, [
-        'Content-Type' => $submission->mimetype,
-    ]);
-}
+    // Grade a submission (for teachers)
+    public function grade(Request $request, $id) {
+        $submission = Submission::findOrFail($id);
+        
+        $data = $request->validate([
+            'grade' => 'required|numeric|min:0|max:100',
+            'feedback' => 'nullable|string',
+        ]);
+
+        $submission->grade = $data['grade'];
+        
+        if (isset($data['feedback'])) {
+            $submission->feedback = $data['feedback'];
+        }
+
+        $submission->save();
+
+        return response()->json([
+            'message' => 'Submission graded successfully',
+            'submission' => $submission->load(['assignment', 'student']),
+        ], 200);
+    }
 }

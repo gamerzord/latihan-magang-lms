@@ -61,8 +61,10 @@
           size="small"
           color="secondary"
           variant="text"
-          @click="downloadFile(item.id, item.filename)"
+          :href="getDownloadUrl(item.id)"
+          target="_blank"
           :loading="downloadingId === item.id"
+          @click="handleDownloadClick"
         >
           <v-icon>mdi-download</v-icon>
         </v-btn>
@@ -160,28 +162,15 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'center' }
 ] as const
 
-const downloadFile = async (submissionId: number, filename?: string) => {
+const handleDownloadClick = async (submissionId: number) => {
   downloadingId.value = submissionId
-  try {
-    const response = await $fetch(`${config.public.apiBase}/submissions/${submissionId}/download`, {
-      method: 'GET',
-      responseType: 'blob'
-    })
-    const blob = new Blob([response as BlobPart], { type: 'application/octet-stream' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename || 'submission_file'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    console.error('Download failed:', error)
-    alert('Failed to download file')
-  } finally {
+  setTimeout(() => {
     downloadingId.value = null
-  }
+  }, 1000)
+}
+
+const getDownloadUrl = (submissionId: number) => {
+  return `${config.public.apiBase}/submissions/${submissionId}/download`
 }
 
 const openGradeDialog = (submission: SubmissionWithRelations) => {

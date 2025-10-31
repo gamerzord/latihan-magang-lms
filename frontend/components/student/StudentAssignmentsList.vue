@@ -41,23 +41,46 @@
 
             <template #item.grade="{ item }">
               <div class="text-center">
-                <span v-if="getSubmission(item.id)?.grade !== undefined">
-                  {{ getSubmission(item.id)?.grade ?? '-' }}
+                <span v-if="getSubmission(item.id)?.grade !== undefined && getSubmission(item.id)?.grade !== null">
+                  {{ getSubmission(item.id)?.grade }}/100
                 </span>
-                <span v-else class="text-medium-emphasis">-</span>
+                <span v-else class="text-medium-emphasis">Not graded</span>
               </div>
             </template>
 
             <template #item.actions="{ item }">
-              <div class="text-center">
+              <div class="text-center d-flex justify-center gap-2">
                 <v-btn
+                  v-if="!getSubmission(item.id)"
                   color="primary"
-                  variant="text"
+                  variant="flat"
                   size="small"
                   @click="openSubmitDialog(item)"
                 >
+                  <v-icon start>mdi-upload</v-icon>
                   Submit
                 </v-btn>
+                <template v-else>
+                  <v-btn
+                    color="success"
+                    variant="outlined"
+                    size="small"
+                    :href="getDownloadUrl(getSubmission(item.id)?.file_url)"
+                    target="_blank"
+                  >
+                    <v-icon start>mdi-download</v-icon>
+                    View
+                  </v-btn>
+                  <v-btn
+                    color="primary"
+                    variant="text"
+                    size="small"
+                    @click="openResubmitDialog(item)"
+                  >
+                    <v-icon start>mdi-refresh</v-icon>
+                    Resubmit
+                  </v-btn>
+                </template>
               </div>
             </template>
           </v-data-table>
@@ -74,29 +97,139 @@
       </v-card-text>
     </v-card>
 
-    <!-- Submit Dialog -->
-    <v-dialog v-model="showDialog" max-width="500">
+    <!-- Submit/Resubmit Dialog -->
+    <v-dialog v-model="showDialog" max-width="600" persistent>
       <v-card>
-        <v-card-title>Submit Assignment</v-card-title>
-            <v-card-text>
-                <div class="upload-box">
-                    <v-file-input
-                        v-model="selectedFile"
-                        label="Select or drop your submission file"
-                        accept=".pdf,.doc,.docx,.zip,.rar"
-                        prepend-icon="mdi-file-upload-outline"
-                        show-size
-                        variant="outlined"
-                        density="comfortable"
-                        clearable
-                        hide-details
-                    />
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span>{{ isResubmit ? 'Resubmit' : 'Submit' }} Assignment</span>
+          <v-btn icon variant="text" @click="closeDialog">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text class="pt-4">
+          <div v-if="selectedAssignment" class="mb-4">
+            <h4 class="text-subtitle-1 mb-2">{{ selectedAssignment.title }}</h4>
+            <p class="text-body-2 text-medium-emphasis">
+              {{ selectedAssignment.description }}
+            </p>
+            <div class="d-flex align-center mt-2 text-caption">
+              <v-icon small class="mr-1">mdi-calendar</v-icon>
+              Due: {{ formatDate(selectedAssignment.due_date) }}
+            </div>
+          </div>
+
+          <v-divider class="my-4" />
+
+          <!-- Current Submission Info (for resubmit) -->
+          <div v-if="isResubmit && currentSubmission" class="mb-4 pa-3 bg-grey-lighten-4 rounded">
+            <div class="text-caption text-medium-emphasis mb-2">Current Submission:</div>
+            <div class="d-flex align-center justify-space-between">
+              <div class="d-flex align-center">
+                <v-icon :color="getFileIconColor(currentSubmission.mimetype)" class="mr-2">
+                  {{ getFileIcon(currentSubmission.mimetype) }}
+                </v-icon>
+                <div>
+                  <div class="text-body-2">{{ currentSubmission.filename }}</div>
+                  <div class="text-caption text-medium-emphasis">
+                    Submitted: {{ formatDate(currentSubmission.created_at) }}
+                  </div>
                 </div>
-            </v-card-text>
-        <v-card-actions class="justify-end">
-          <v-btn text @click="closeDialog">Cancel</v-btn>
-          <v-btn color="primary" @click="submitAssignment" :loading="uploading">
-            Submit
+              </div>
+              <v-chip size="small" :color="getStatusColor(currentSubmission.status)">
+                {{ currentSubmission.status }}
+              </v-chip>
+            </div>
+          </div>
+
+          <!-- File Upload -->
+          <div class="upload-box">
+            <v-file-input
+              v-model="selectedFile"
+              label="Select your submission file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.zip,.rar"
+              prepend-icon="mdi-file-upload-outline"
+              show-size
+              variant="outlined"
+              density="comfortable"
+              clearable
+              :rules="[fileRequiredRule, fileSizeRule]"
+              hint="Accepted formats: PDF, DOC, DOCX, PPT, PPTX, ZIP, RAR (Max 10MB)"
+              persistent-hint
+            >
+              <template #selection="{ fileNames }">
+                <v-chip
+                  v-if="fileNames.length"
+                  color="primary"
+                  label
+                  class="me-2"
+                >
+                  <v-icon start>mdi-file-document</v-icon>
+                  {{ fileNames[0] }}
+                </v-chip>
+              </template>
+            </v-file-input>
+          </div>
+
+          <!-- File Preview -->
+          <div v-if="selectedFile" class="mt-4 pa-3 bg-grey-lighten-5 rounded">
+            <div class="text-caption text-medium-emphasis mb-2">Selected File:</div>
+            <div class="d-flex align-center">
+              <v-icon :color="getFileIconColor(selectedFile.type)" class="mr-2">
+                {{ getFileIcon(selectedFile.type) }}
+              </v-icon>
+              <div>
+                <div class="text-body-2">{{ selectedFile.name }}</div>
+                <div class="text-caption">{{ formatFileSize(selectedFile.size) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Message -->
+          <v-alert
+            v-if="errorMessage"
+            type="error"
+            variant="tonal"
+            class="mt-4"
+            closable
+            @click:close="errorMessage = ''"
+          >
+            {{ errorMessage }}
+          </v-alert>
+
+          <!-- Success Message -->
+          <v-alert
+            v-if="successMessage"
+            type="success"
+            variant="tonal"
+            class="mt-4"
+          >
+            {{ successMessage }}
+          </v-alert>
+        </v-card-text>
+
+        <v-divider />
+
+        <v-card-actions class="px-4 py-3">
+          <v-spacer />
+          <v-btn
+            variant="outlined"
+            @click="closeDialog"
+            :disabled="uploading"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="submitAssignment"
+            :loading="uploading"
+            :disabled="!selectedFile || uploading"
+          >
+            <v-icon start>mdi-upload</v-icon>
+            {{ isResubmit ? 'Resubmit' : 'Submit' }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -145,6 +278,43 @@ const getStatusColor = (status: string) => {
   return map[status] || 'grey'
 }
 
+const getDownloadUrl = (fileUrl: string | undefined) => {
+  if (!fileUrl) return ''
+  
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+    return fileUrl
+  }
+  
+  const baseUrl = config.public.apiBase.replace('/api', '')
+  return `${baseUrl}/storage/${fileUrl}`
+}
+
+const getFileIcon = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'mdi-file-pdf-box'
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'mdi-file-word'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'mdi-file-excel'
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'mdi-file-powerpoint'
+  if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('compressed')) return 'mdi-folder-zip'
+  return 'mdi-file-document'
+}
+
+const getFileIconColor = (mimeType: string) => {
+  if (mimeType.includes('pdf')) return 'red'
+  if (mimeType.includes('word')) return 'blue'
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return 'green'
+  if (mimeType.includes('presentation')) return 'orange'
+  if (mimeType.includes('zip') || mimeType.includes('rar')) return 'purple'
+  return 'grey'
+}
+
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
+
 const formatDate = (dateString: string | Date) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -156,9 +326,9 @@ const formatDate = (dateString: string | Date) => {
 }
 
 const headers = [
-  { title: 'Title', key: 'title', align: 'center', sortable: true },
-  { title: 'Description', key: 'description', align: 'center', sortable: false },
-  { title: 'Due Date', key: 'due_date', align: 'center', sortable: false },
+  { title: 'Title', key: 'title', align: 'start', sortable: true },
+  { title: 'Description', key: 'description', align: 'start', sortable: false },
+  { title: 'Due Date', key: 'due_date', align: 'center', sortable: true },
   { title: 'Status', key: 'status', align: 'center', sortable: true },
   { title: 'Grade', key: 'grade', align: 'center', sortable: true },
   { title: 'Action', key: 'actions', align: 'center', sortable: false }
@@ -168,20 +338,54 @@ const showDialog = ref(false)
 const selectedAssignment = ref<Assignment | null>(null)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
+const isResubmit = ref(false)
+const currentSubmission = ref<Submission | null>(null)
+const errorMessage = ref('')
+const successMessage = ref('')
+
+const fileRequiredRule = (value: File | null) => {
+  return !!value || 'Please select a file'
+}
+
+const fileSizeRule = (value: File | null) => {
+  if (!value) return true
+  const maxSize = 10 * 1024 * 1024 // 10MB
+  return value.size <= maxSize || 'File size must be less than 10MB'
+}
 
 const openSubmitDialog = (assignment: Assignment) => {
   selectedAssignment.value = assignment
+  isResubmit.value = false
+  currentSubmission.value = null
+  showDialog.value = true
+}
+
+const openResubmitDialog = (assignment: Assignment) => {
+  selectedAssignment.value = assignment
+  isResubmit.value = true
+  currentSubmission.value = getSubmission(assignment.id) || null
   showDialog.value = true
 }
 
 const closeDialog = () => {
   showDialog.value = false
   selectedFile.value = null
+  selectedAssignment.value = null
+  isResubmit.value = false
+  currentSubmission.value = null
+  errorMessage.value = ''
+  successMessage.value = ''
 }
 
 const submitAssignment = async () => {
-  if (!selectedAssignment.value || !selectedFile.value || !props.studentId) return
+  if (!selectedAssignment.value || !selectedFile.value || !props.studentId) {
+    errorMessage.value = 'Please select a file to submit'
+    return
+  }
+
   uploading.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
 
   try {
     const formData = new FormData()
@@ -189,18 +393,30 @@ const submitAssignment = async () => {
     formData.append('student_id', props.studentId.toString())
     formData.append('file', selectedFile.value)
 
-    await $fetch(`${config.public.apiBase}/submissions`, {
-      method: 'POST',
+    const endpoint = isResubmit.value && currentSubmission.value
+      ? `${config.public.apiBase}/submissions/${currentSubmission.value.id}`
+      : `${config.public.apiBase}/submissions`
+
+    const method = isResubmit.value && currentSubmission.value ? 'PUT' : 'POST'
+
+    await $fetch(endpoint, {
+      method,
       body: formData,
-      headers: {
-        'Accept': 'application/json',
-      },
     })
 
+    successMessage.value = isResubmit.value 
+      ? 'Assignment resubmitted successfully!' 
+      : 'Assignment submitted successfully!'
+
     await refresh()
-    closeDialog()
-  } catch (err) {
-    console.error(err)
+    
+    setTimeout(() => {
+      closeDialog()
+    }, 1500)
+
+  } catch (err: any) {
+    console.error('Submission error:', err)
+    errorMessage.value = err.data?.message || 'Failed to submit assignment. Please try again.'
   } finally {
     uploading.value = false
   }
@@ -208,30 +424,30 @@ const submitAssignment = async () => {
 </script>
 
 <style scoped>
-.v-data-table th.text-center,
-.v-data-table td.text-center {
+.v-data-table :deep(th.text-center),
+.v-data-table :deep(td.text-center) {
   text-align: center;
 }
-.v-data-table th.text-start,
-.v-data-table td.text-start {
+
+.v-data-table :deep(th.text-start),
+.v-data-table :deep(td.text-start) {
   text-align: left;
 }
 
 .upload-box {
-  border: 2px dashed var(--v-theme-primary);
+  border: 2px dashed rgb(var(--v-theme-primary));
   border-radius: 12px;
   padding: 24px;
   background-color: rgba(0, 0, 0, 0.02);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .upload-box:hover {
   background-color: rgba(0, 0, 0, 0.05);
-  border-color: var(--v-theme-primary-darken-1);
+  border-color: rgb(var(--v-theme-primary-darken-1));
 }
 
-.upload-box .v-file-input {
-  width: 100%;
+.gap-2 {
+  gap: 8px;
 }
-
 </style>

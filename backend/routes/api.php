@@ -40,5 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/submissions/{id}/download', [SubmissionController::class, 'download']);
     Route::get('/teacher/courses/{id}/submissions', [CourseController::class, 'getCourseSubmissions']);
+
+    Route::post('/lessons/{id}/attachments', [LessonController::class, 'uploadAttachments']);
+    Route::delete('/attachments/{id}', [LessonController::class, 'deleteAttachment']);
 });
 
