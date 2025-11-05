@@ -35,6 +35,7 @@
       <template v-else-if="user?.role === 'teacher'">
         <v-list-item to="/teacher" prepend-icon="mdi-view-dashboard" title="Dashboard" />
         <v-list-item to="/teacher/courses/create" prepend-icon="mdi-plus-circle" title="Create Course" />
+        <v-list-item to="/teacher/conference" prepend-icon="mdi-video-plus" title="Create Conference" />
       </template>
 
       <template v-else-if="user?.role === 'admin'">
