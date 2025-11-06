@@ -10,6 +10,7 @@ use App\Http\Controllers\LessonController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\AssignmentController;
 use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\ConferenceController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/admin/login', [AuthController::class, 'adminLogin']);
@@ -27,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('enrollments', EnrollmentController::class);
     Route::apiResource('assignments', AssignmentController::class);
     Route::apiResource('submissions', SubmissionController::class);
+    Route::apiResource('conferences', ConferenceController::class);
     Route::apiResource('/student/schedule', ScheduleEventController::class)->except(['show']);
 
     Route::get('/student/courses', [CourseController::class, 'studentCourses']);
@@ -43,5 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/lessons/{id}/attachments', [LessonController::class, 'uploadAttachments']);
     Route::delete('/attachments/{id}', [LessonController::class, 'deleteAttachment']);
+    
+    Route::post('/conferences/{id}/start', [ConferenceController::class, 'start']);
+    Route::post('/conferences/{id}/end', [ConferenceController::class, 'end']);
 });
 

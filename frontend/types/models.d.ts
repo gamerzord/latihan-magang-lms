@@ -126,3 +126,18 @@ export interface LessonAttachment {
   lessons?: Lesson[]
   file_size_human?: string
 }
+
+export interface Conference {
+  id: number
+  course_id: number
+  teacher_id: number
+  title: string
+  room_id: string
+  status: 'scheduled' | 'active' | 'ended'
+  started_at: string | null
+  ended_at: string | null
+  created_at: string
+  updated_at: string
+  course?: Course
+  teacher?: User
+}
