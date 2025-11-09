@@ -141,3 +141,13 @@ export interface Conference {
   course?: Course
   teacher?: User
 }
+
+export interface ActiveConference {
+  id: number
+  course_id: number | null
+  course_title: string
+  title: string
+  room_id: string
+  teacher_name: string
+  started_at: string
+}

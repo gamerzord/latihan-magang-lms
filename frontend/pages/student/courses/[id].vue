@@ -3,6 +3,12 @@
     <v-container>
       <v-row>
         <v-col cols="12" md="8" offset-md="2">
+
+          <LiveConferenceBanner 
+          v-if="course"
+          :course-id="course.id" 
+          />
+
           <v-card elevation="2" class="pa-4">
             <template v-if="pending">
               <div class="text-center py-8">
@@ -187,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import LiveConferenceBanner from '~/components/student/LiveConferenceBanner.vue'
 import StudentAssignmentsList from '~/components/student/StudentAssignmentsList.vue'
 import type { Course } from '~/types/models'
 

@@ -5,9 +5,9 @@
       <div class="header-content">
         <div class="header-left">
           <span class="conference-title">{{ conference?.title }}</span>
-          <v-chip size="small" color="success" class="ml-2">
-            <v-icon size="small" start>mdi-record-circle</v-icon>
-            Active
+          <v-chip size="small" :color="conferenceStatusColor" class="ml-2">
+            <v-icon size="small" start>{{ conferenceStatusIcon }}</v-icon>
+            {{ conferenceStatusText }}
           </v-chip>
         </div>
         <div class="header-right">
@@ -43,7 +43,7 @@
           </div>
           <div class="video-name-tag">
             <v-icon size="16" class="mr-1">{{ isMicOn ? 'mdi-microphone' : 'mdi-microphone-off' }}</v-icon>
-            You
+            You (Student)
           </div>
         </div>
 
@@ -62,6 +62,29 @@
           <div class="video-name-tag">
             <v-icon size="16" class="mr-1">mdi-account</v-icon>
             {{ participant.name }}
+          </div>
+        </div>
+
+        <!-- Waiting for Teacher -->
+        <div v-if="!hasTeacherConnected && conference?.status !== 'ended'" class="waiting-teacher">
+          <div class="waiting-content">
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              size="64"
+            ></v-progress-circular>
+            <p class="mt-4 text-h6">Waiting for teacher to join...</p>
+            <p class="text-body-1 mt-2">Please wait while we connect you to the conference</p>
+          </div>
+        </div>
+
+        <!-- Conference Ended Message -->
+        <div v-if="conference?.status === 'ended'" class="conference-ended">
+          <div class="ended-content">
+            <v-icon size="80" color="grey-lighten-1" class="mb-4">mdi-phone-hangup</v-icon>
+            <p class="text-h4 mb-2">Conference Ended</p>
+            <p class="text-body-1 mb-4">The teacher has ended this conference.</p>
+            <p class="text-caption text-medium-emphasis">Redirecting to dashboard...</p>
           </div>
         </div>
       </div>
@@ -85,6 +108,7 @@
                 size="large"
                 icon
                 @click="toggleMic"
+                :disabled="!hasTeacherConnected || conference?.status === 'ended'"
               >
                 <v-icon size="24">{{ isMicOn ? 'mdi-microphone' : 'mdi-microphone-off' }}</v-icon>
               </v-btn>
@@ -99,6 +123,7 @@
                 size="large"
                 icon
                 @click="toggleVideo"
+                :disabled="!hasTeacherConnected || conference?.status === 'ended'"
               >
                 <v-icon size="24">{{ isVideoOn ? 'mdi-video' : 'mdi-video-off' }}</v-icon>
               </v-btn>
@@ -113,6 +138,7 @@
                 size="large"
                 icon
                 @click="leaveConference"
+                :disabled="conference?.status === 'ended'"
               >
                 <v-icon size="24">mdi-phone-hangup</v-icon>
               </v-btn>
@@ -123,8 +149,12 @@
         <!-- Right: Additional Info -->
         <div class="control-right">
           <span class="connection-status">
-            <v-icon size="16" color="success" class="mr-1">mdi-circle</v-icon>
-            Connected
+            <v-icon 
+              size="16" 
+              :color="connectionStatus.color" 
+              class="mr-1"
+            >mdi-circle</v-icon>
+            {{ connectionStatus.text }}
           </span>
         </div>
       </div>
@@ -143,6 +173,7 @@
           size="64"
         ></v-progress-circular>
         <p class="text-white mt-4 text-h6">Joining conference...</p>
+        <p class="text-white mt-2">Setting up your camera and microphone</p>
       </div>
     </v-overlay>
 
@@ -159,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import Peer, { type MediaConnection, type DataConnection } from 'peerjs' // Add DataConnection import
+import Peer, { type MediaConnection, type DataConnection } from 'peerjs'
 import type { Conference } from '~/types/models'
 
 definePageMeta({
@@ -177,17 +208,50 @@ const remoteVideoRefs = ref<Map<string, HTMLVideoElement>>(new Map())
 const peer = ref<Peer | null>(null)
 const localStream = ref<MediaStream | null>(null)
 const calls = ref<Map<string, MediaConnection>>(new Map())
-const dataConnections = ref<Map<string, DataConnection>>(new Map()) // Add this line
+const dataConnections = ref<Map<string, DataConnection>>(new Map())
 
-const participants = ref<Array<{ peerId: string; name: string }>>([])
+const participants = ref<Array<{ peerId: string; name: string; isTeacher: boolean }>>([])
 const isMicOn = ref(true)
 const isVideoOn = ref(true)
 const currentTime = ref('')
+const hasTeacherConnected = ref(false)
+const connectionAttempts = ref(0)
+const maxConnectionAttempts = 5
+const conferenceCheckInterval = ref<number | null>(null)
 
 const snackbar = ref({
   show: false,
   text: '',
   color: 'success'
+})
+
+// Conference status computed properties
+const conferenceStatusText = computed(() => {
+  if (conference.value?.status === 'ended') return 'Ended'
+  if (conference.value?.status === 'active') return 'Active'
+  return 'Connecting'
+})
+
+const conferenceStatusColor = computed(() => {
+  if (conference.value?.status === 'ended') return 'error'
+  if (conference.value?.status === 'active') return 'success'
+  return 'warning'
+})
+
+const conferenceStatusIcon = computed(() => {
+  if (conference.value?.status === 'ended') return 'mdi-phone-hangup'
+  if (conference.value?.status === 'active') return 'mdi-record-circle'
+  return 'mdi-clock-outline'
+})
+
+const connectionStatus = computed(() => {
+  if (conference.value?.status === 'ended') {
+    return { text: 'Conference Ended', color: 'error' }
+  }
+  if (!hasTeacherConnected.value) {
+    return { text: 'Connecting...', color: 'warning' }
+  }
+  return { text: 'Connected', color: 'success' }
 })
 
 const gridClass = computed(() => {
@@ -199,7 +263,8 @@ const gridClass = computed(() => {
   return 'grid-9'
 })
 
-const { data: conferenceData } = useFetch<{ conference: Conference }>(
+// Fetch conference data with periodic refreshing
+const { data: conferenceData, refresh: refreshConference } = useFetch<{ conference: Conference }>(
   `${config.public.apiBase}/conferences/${route.params.id}`,
   {
     key: `conference-${route.params.id}`,
@@ -207,14 +272,46 @@ const { data: conferenceData } = useFetch<{ conference: Conference }>(
   }
 )
 
+// Watch for conference data changes
 watch(conferenceData, (newData) => {
   if (newData) {
     conference.value = newData.conference
-    if (!peer.value) {
+    console.log('Conference status:', conference.value?.status)
+    
+    // If conference ended, handle cleanup and redirect
+    if (conference.value?.status === 'ended') {
+      handleConferenceEnded()
+    } else if (!peer.value) {
       initializePeer()
     }
   }
 }, { immediate: true })
+
+const startConferenceStatusCheck = () => {
+  // Check conference status every 10 seconds
+  conferenceCheckInterval.value = setInterval(async () => {
+    try {
+      await refreshConference()
+    } catch (error) {
+      console.error('Error checking conference status:', error)
+    }
+  }, 10000) as unknown as number // Cast to number for browser environment
+}
+
+const handleConferenceEnded = () => {
+  console.log('Conference ended, cleaning up...')
+  
+  // Show ended message
+  showSnackbar('Conference has ended', 'info')
+  
+  // Clean up resources
+  cleanup()
+  
+  // Redirect to dashboard after 3 seconds
+  setTimeout(() => {
+    navigateTo('/student')
+  }, 3000)
+}
 
 const setRemoteVideoRef = (el: any, peerId: string) => {
   if (el) {
@@ -231,41 +328,9 @@ const updateTime = () => {
   })
 }
 
-// ADD THIS FUNCTION - Call students when they connect
-const callStudent = (studentPeerId: string) => {
-  if (!peer.value || !localStream.value) {
-    console.log('Peer or local stream not ready')
-    return
-  }
-  
-  console.log('Calling student:', studentPeerId)
-  
-  try {
-    const call = peer.value.call(studentPeerId, localStream.value)
-    
-    call.on('stream', (remoteStream) => {
-      console.log('Received stream from student:', studentPeerId)
-      handleNewStream(studentPeerId, remoteStream)
-    })
-    
-    call.on('close', () => {
-      console.log('Call closed with student:', studentPeerId)
-      removeParticipant(studentPeerId)
-    })
-    
-    call.on('error', (error) => {
-      console.error('Call error with student:', studentPeerId, error)
-      showSnackbar('Failed to connect to student', 'error')
-    })
-    
-    calls.value.set(studentPeerId, call)
-  } catch (error) {
-    console.error('Error calling student:', error)
-  }
-}
-
 const initializePeer = async () => {
   try {
+    // Get user media first
     localStream.value = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
@@ -275,8 +340,8 @@ const initializePeer = async () => {
       localVideoRef.value.srcObject = localStream.value
     }
 
-    // Use simpler teacher peer ID for students to connect to
-    const peerId = `teacher-${conference.value?.room_id}`
+    // Student peer ID - simpler format for easier connection
+    const peerId = `student-${conference.value?.room_id}-${Math.random().toString(36).substr(2, 9)}`
     
     peer.value = new Peer(peerId, {
       host: '0.peerjs.com',
@@ -292,59 +357,64 @@ const initializePeer = async () => {
     })
 
     peer.value.on('open', (id) => {
-      console.log('Teacher peer ID:', id)
-      showSnackbar('Conference started - Waiting for students', 'success')
+      console.log('Student peer ID:', id)
+      showSnackbar('Connected to conference server', 'success')
       loading.value = false
+      
+      // Start conference status checking
+      startConferenceStatusCheck()
+      
+      // Start trying to connect to teacher
+      connectToTeacher()
     })
 
-    // KEEP existing call handler for backward compatibility
     peer.value.on('call', (call) => {
       console.log('Incoming call from:', call.peer)
       
+      // Don't answer if conference ended
+      if (conference.value?.status === 'ended') {
+        call.close()
+        return
+      }
+      
+      // Answer the call with local stream
       call.answer(localStream.value!)
       
       call.on('stream', (remoteStream) => {
+        console.log('Received remote stream from:', call.peer)
         handleNewStream(call.peer, remoteStream)
       })
 
       call.on('close', () => {
+        console.log('Call closed from:', call.peer)
         removeParticipant(call.peer)
+      })
+
+      call.on('error', (error) => {
+        console.error('Call error:', error)
+        showSnackbar('Connection error with teacher', 'error')
       })
 
       calls.value.set(call.peer, call)
     })
 
-    // ADD THIS - Listen for data connections from students
+    // Handle data connections for messaging
     peer.value.on('connection', (dataConnection) => {
       console.log('Data connection from:', dataConnection.peer)
-      
-      dataConnection.on('open', () => {
-        console.log('Data connection opened with:', dataConnection.peer)
-        showSnackbar('Student joined the conference', 'info')
-      })
-      
       dataConnection.on('data', (data: any) => {
-        console.log('Data received from student:', data)
-        if (data.type === 'student-joined') {
-          // Call the student when they send join message
-          callStudent(data.studentId)
-        }
+        handleDataMessage(dataConnection.peer, data)
       })
-      
-      dataConnection.on('close', () => {
-        console.log('Data connection closed with:', dataConnection.peer)
-      })
-      
-      dataConnection.on('error', (error) => {
-        console.error('Data connection error:', error)
-      })
-      
       dataConnections.value.set(dataConnection.peer, dataConnection)
     })
 
     peer.value.on('error', (error) => {
       console.error('Peer error:', error)
-      showSnackbar('Connection error', 'error')
+      showSnackbar('Connection error: ' + error.message, 'error')
+    })
+
+    peer.value.on('disconnected', () => {
+      console.log('Peer disconnected')
+      showSnackbar('Disconnected from conference', 'warning')
     })
 
   } catch (error) {
@@ -354,30 +424,110 @@ const initializePeer = async () => {
   }
 }
 
-const handleNewStream = (peerId: string, stream: MediaStream) => {
-  if (!participants.value.find(p => p.peerId === peerId)) {
-    participants.value.push({
-      peerId,
-      name: `Student ${participants.value.length + 1}`
-    })
-    showSnackbar('New student connected', 'success')
+const connectToTeacher = () => {
+  // Don't try to connect if conference ended
+  if (conference.value?.status === 'ended') {
+    return
   }
 
+  if (connectionAttempts.value >= maxConnectionAttempts) {
+    showSnackbar('Failed to connect to teacher after multiple attempts', 'error')
+    return
+  }
+
+  const teacherPeerId = `teacher-${conference.value?.room_id}`
+  console.log('Attempting to connect to teacher:', teacherPeerId)
+  
+  connectionAttempts.value++
+
+  // Try to call teacher after a short delay
   setTimeout(() => {
+    if (peer.value && !peer.value.disconnected && conference.value?.status !== 'ended') {
+      console.log(`Connection attempt ${connectionAttempts.value} to teacher`)
+      
+      // Also try to establish data connection
+      try {
+        const dataConnection = peer.value.connect(teacherPeerId, {
+          reliable: true
+        })
+        
+        dataConnection.on('open', () => {
+          console.log('Data connection established with teacher')
+          dataConnection.send({ 
+            type: 'student-joined',
+            studentId: peer.value?.id,
+            name: 'Student'
+          })
+        })
+        
+        dataConnection.on('error', (error) => {
+          console.error('Data connection error:', error)
+        })
+        
+        dataConnections.value.set(teacherPeerId, dataConnection)
+      } catch (error) {
+        console.error('Error creating data connection:', error)
+      }
+    }
+    
+    // Retry if not connected and conference still active
+    if (!hasTeacherConnected.value && conference.value?.status !== 'ended') {
+      setTimeout(connectToTeacher, 2000)
+    }
+  }, 1000)
+}
+
+const handleNewStream = (peerId: string, stream: MediaStream) => {
+  console.log('Handling new stream from:', peerId)
+  
+  const isTeacher = peerId.startsWith('teacher-')
+  const name = isTeacher ? 'Teacher' : `Student ${participants.value.length}`
+  
+  if (!participants.value.find(p => p.peerId === peerId)) {
+    participants.value.push({ 
+      peerId, 
+      name, 
+      isTeacher 
+    })
+    
+    if (isTeacher) {
+      hasTeacherConnected.value = true
+      showSnackbar('Connected to teacher!', 'success')
+    }
+  }
+
+  // Set the stream to the video element
+  nextTick(() => {
     const videoEl = remoteVideoRefs.value.get(peerId)
     if (videoEl) {
       videoEl.srcObject = stream
+      console.log('Stream set to video element for:', peerId)
+    } else {
+      console.warn('Video element not found for:', peerId)
     }
-  }, 100)
+  })
+}
+
+const handleDataMessage = (peerId: string, data: any) => {
+  console.log('Data message from:', peerId, data)
+  
+  // Handle conference end messages from teacher
+  if (data.type === 'conference-ended') {
+    handleConferenceEnded()
+  }
 }
 
 const removeParticipant = (peerId: string) => {
-  const participantName = participants.value.find(p => p.peerId === peerId)?.name || 'Participant'
+  const participant = participants.value.find(p => p.peerId === peerId)
+  if (participant?.isTeacher) {
+    hasTeacherConnected.value = false
+    showSnackbar('Teacher has left the conference', 'warning')
+  }
+  
   participants.value = participants.value.filter(p => p.peerId !== peerId)
   calls.value.delete(peerId)
-  dataConnections.value.delete(peerId) // Also remove data connection
+  dataConnections.value.delete(peerId)
   remoteVideoRefs.value.delete(peerId)
-  showSnackbar(`${participantName} left the conference`, 'info')
 }
 
 const toggleMic = () => {
@@ -403,13 +553,19 @@ const toggleVideo = () => {
 }
 
 const leaveConference = () => {
-  if (confirm('Are you sure you want to end the conference?')) {
+  if (confirm('Are you sure you want to leave the conference?')) {
     cleanup()
-    navigateTo('/teacher/conferences')
+    navigateTo('/student')
   }
 }
 
 const cleanup = () => {
+  // Clear conference check interval
+  if (conferenceCheckInterval.value) {
+    clearInterval(conferenceCheckInterval.value)
+    conferenceCheckInterval.value = null
+  }
+
   if (localStream.value) {
     localStream.value.getTracks().forEach(track => track.stop())
   }
@@ -417,7 +573,7 @@ const cleanup = () => {
   calls.value.forEach(call => call.close())
   calls.value.clear()
 
-  dataConnections.value.forEach(conn => conn.close()) // Clean up data connections
+  dataConnections.value.forEach(conn => conn.close())
   dataConnections.value.clear()
 
   if (peer.value) {
@@ -448,7 +604,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* Header Bar */
 .header-bar {
   background: #3c4043;
   padding: 12px 24px;
@@ -483,7 +638,6 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
-/* Video Grid Container */
 .video-grid-container {
   flex: 1;
   display: flex;
@@ -525,7 +679,6 @@ onBeforeUnmount(() => {
   grid-template-rows: repeat(3, 1fr);
 }
 
-/* Video Tile */
 .video-tile {
   position: relative;
   background: #000;
@@ -571,7 +724,6 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(4px);
 }
 
-/* Control Bar */
 .control-bar {
   background: #3c4043;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -616,7 +768,6 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-/* Control Buttons */
 .control-btn {
   background: rgba(255, 255, 255, 0.1) !important;
   color: white !important;
@@ -649,7 +800,6 @@ onBeforeUnmount(() => {
   background: #d33426 !important;
 }
 
-/* Responsive */
 @media (max-width: 960px) {
   .grid-4,
   .grid-6,
@@ -680,5 +830,57 @@ onBeforeUnmount(() => {
     width: 48px !important;
     height: 48px !important;
   }
+}
+
+.waiting-teacher {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: white;
+  z-index: 5;
+}
+
+.waiting-content {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 40px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.conference-ended {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: white;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ended-content {
+  background: rgba(0, 0, 0, 0.9);
+  padding: 60px 40px;
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Add disabled state for controls */
+.control-btn:disabled,
+.leave-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn:disabled:hover,
+.leave-btn:disabled:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 </style>

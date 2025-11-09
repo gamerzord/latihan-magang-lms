@@ -240,11 +240,12 @@
 <script setup lang="ts">
 import type { Assignment, Submission, Course } from '~/types/models'
 
-const props = defineProps<{
+interface Props {
   courseId: number
   studentId?: number
-}>()
+}
 
+const props = defineProps<Props>()
 const config = useRuntimeConfig()
 
 const { data, pending } = await useFetch<{ course: Course }>(

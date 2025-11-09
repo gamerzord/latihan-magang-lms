@@ -129,4 +129,68 @@ class ConferenceController extends Controller
 
         return response()->json(['message' => 'Conference deleted successfully']);
     }
+
+    public function getStudentActiveConferences(Request $request)
+    {
+        $user = $request->user();
+        
+        if ($user->role !== 'student') {
+            abort(403, 'Only students can access this endpoint');
+        }
+        
+        $courseIds = $user->enrollments()->pluck('course_id');
+        
+        $conferences = Conference::whereIn('course_id', $courseIds)
+            ->where('status', 'active')
+            ->with('course', 'teacher')
+            ->get()
+            ->map(function ($conference) {
+                return [
+                    'id' => $conference->id,
+                    'course_id' => $conference->course_id,
+                    'course_title' => $conference->course->title,
+                    'title' => $conference->title,
+                    'room_id' => $conference->room_id,
+                    'teacher_name' => $conference->teacher->name,
+                    'started_at' => $conference->started_at,
+                ];
+            });
+        
+        return response()->json(['conferences' => $conferences]);
+    }
+
+    public function getCourseActiveConference(Request $request, $courseId)
+    {
+        $user = $request->user();
+        
+        if ($user->role !== 'student') {
+            abort(403, 'Only students can access this endpoint');
+        }
+        
+        $enrolled = $user->enrollments()->where('course_id', $courseId)->exists();
+        
+        if (!$enrolled) {
+            abort(403, 'You are not enrolled in this course');
+        }
+        
+        $conference = Conference::where('course_id', $courseId)
+            ->where('status', 'active')
+            ->with('teacher')
+            ->first();
+        
+        if (!$conference) {
+            return response()->json(['conference' => null]);
+        }
+        
+        return response()->json([
+            'conference' => [
+                'id' => $conference->id,
+                'course_id' => $conference->course_id,
+                'title' => $conference->title,
+                'room_id' => $conference->room_id,
+                'teacher_name' => $conference->teacher->name,
+                'started_at' => $conference->started_at,
+            ]
+        ]);
+    }
 }

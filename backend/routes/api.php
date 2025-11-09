@@ -48,5 +48,8 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::post('/conferences/{id}/start', [ConferenceController::class, 'start']);
     Route::post('/conferences/{id}/end', [ConferenceController::class, 'end']);
+
+    Route::get('/student/active-conferences', [ConferenceController::class, 'getStudentActiveConferences']);
+    Route::get('/student/courses/{id}/active-conference', [ConferenceController::class, 'getCourseActiveConference']);
 });
 
