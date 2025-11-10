@@ -43,7 +43,7 @@
           </div>
           <div class="video-name-tag">
             <v-icon size="16" class="mr-1">{{ isMicOn ? 'mdi-microphone' : 'mdi-microphone-off' }}</v-icon>
-            You (Student)
+            {{ userName }} (You)
           </div>
         </div>
 
@@ -199,6 +199,7 @@ definePageMeta({
 
 const route = useRoute()
 const config = useRuntimeConfig()
+const { user } = useAuth()
 
 const conference = ref<Conference | null>(null)
 const loading = ref(true)
@@ -223,6 +224,11 @@ const snackbar = ref({
   show: false,
   text: '',
   color: 'success'
+})
+
+// Get user name from auth
+const userName = computed(() => {
+  return user.value?.name || 'Student'
 })
 
 // Conference status computed properties
@@ -295,7 +301,7 @@ const startConferenceStatusCheck = () => {
     } catch (error) {
       console.error('Error checking conference status:', error)
     }
-  }, 10000) as unknown as number // Cast to number for browser environment
+  }, 10000) as unknown as number
 }
 
 const handleConferenceEnded = () => {
@@ -453,15 +459,32 @@ const connectToTeacher = () => {
         
         dataConnection.on('open', () => {
           console.log('Data connection established with teacher')
+          // Send user info when connecting
           dataConnection.send({ 
             type: 'student-joined',
             studentId: peer.value?.id,
-            name: 'Student'
+            userName: userName.value,
+            userId: user.value?.id
           })
+        })
+        
+        dataConnection.on('data', (data: any) => {
+          console.log('Data received from teacher:', data)
+          if (data.type === 'user-info') {
+            // Update teacher's name with actual user name
+            const teacherParticipant = participants.value.find(p => p.isTeacher)
+            if (teacherParticipant && data.userName) {
+              teacherParticipant.name = data.userName
+            }
+          }
         })
         
         dataConnection.on('error', (error) => {
           console.error('Data connection error:', error)
+        })
+        
+        dataConnection.on('close', () => {
+          console.log('Data connection closed with teacher')
         })
         
         dataConnections.value.set(teacherPeerId, dataConnection)
@@ -514,6 +537,12 @@ const handleDataMessage = (peerId: string, data: any) => {
   // Handle conference end messages from teacher
   if (data.type === 'conference-ended') {
     handleConferenceEnded()
+  } else if (data.type === 'user-info') {
+    // Update participant name with actual user name
+    const participant = participants.value.find(p => p.peerId === peerId)
+    if (participant && data.userName) {
+      participant.name = data.userName
+    }
   }
 }
 

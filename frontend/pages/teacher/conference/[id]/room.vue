@@ -43,7 +43,7 @@
           </div>
           <div class="video-name-tag">
             <v-icon size="16" class="mr-1">{{ isMicOn ? 'mdi-microphone' : 'mdi-microphone-off' }}</v-icon>
-            You
+            {{ userName }} (You)
           </div>
         </div>
 
@@ -159,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import Peer, { type MediaConnection, type DataConnection } from 'peerjs' // Add DataConnection import
+import Peer, { type MediaConnection, type DataConnection } from 'peerjs'
 import type { Conference } from '~/types/models'
 
 definePageMeta({
@@ -168,6 +168,7 @@ definePageMeta({
 
 const route = useRoute()
 const config = useRuntimeConfig()
+const { user } = useAuth()
 
 const conference = ref<Conference | null>(null)
 const loading = ref(true)
@@ -177,7 +178,7 @@ const remoteVideoRefs = ref<Map<string, HTMLVideoElement>>(new Map())
 const peer = ref<Peer | null>(null)
 const localStream = ref<MediaStream | null>(null)
 const calls = ref<Map<string, MediaConnection>>(new Map())
-const dataConnections = ref<Map<string, DataConnection>>(new Map()) // Add this line
+const dataConnections = ref<Map<string, DataConnection>>(new Map())
 
 const participants = ref<Array<{ peerId: string; name: string }>>([])
 const isMicOn = ref(true)
@@ -188,6 +189,11 @@ const snackbar = ref({
   show: false,
   text: '',
   color: 'success'
+})
+
+// Get user name from auth
+const userName = computed(() => {
+  return user.value?.name || 'Teacher'
 })
 
 const gridClass = computed(() => {
@@ -231,7 +237,18 @@ const updateTime = () => {
   })
 }
 
-// ADD THIS FUNCTION - Call students when they connect
+// ADD THIS FUNCTION - Send user info when students connect
+const sendUserInfoToStudent = (studentPeerId: string) => {
+  const dataConnection = dataConnections.value.get(studentPeerId)
+  if (dataConnection && dataConnection.open) {
+    dataConnection.send({
+      type: 'user-info',
+      userName: userName.value,
+      userId: user.value?.id
+    })
+  }
+}
+
 const callStudent = (studentPeerId: string) => {
   if (!peer.value || !localStream.value) {
     console.log('Peer or local stream not ready')
@@ -275,7 +292,6 @@ const initializePeer = async () => {
       localVideoRef.value.srcObject = localStream.value
     }
 
-    // Use simpler teacher peer ID for students to connect to
     const peerId = `teacher-${conference.value?.room_id}`
     
     peer.value = new Peer(peerId, {
@@ -297,7 +313,6 @@ const initializePeer = async () => {
       loading.value = false
     })
 
-    // KEEP existing call handler for backward compatibility
     peer.value.on('call', (call) => {
       console.log('Incoming call from:', call.peer)
       
@@ -314,20 +329,33 @@ const initializePeer = async () => {
       calls.value.set(call.peer, call)
     })
 
-    // ADD THIS - Listen for data connections from students
     peer.value.on('connection', (dataConnection) => {
       console.log('Data connection from:', dataConnection.peer)
       
       dataConnection.on('open', () => {
         console.log('Data connection opened with:', dataConnection.peer)
         showSnackbar('Student joined the conference', 'info')
+        // Send user info to student when connection opens
+        sendUserInfoToStudent(dataConnection.peer)
       })
       
       dataConnection.on('data', (data: any) => {
         console.log('Data received from student:', data)
         if (data.type === 'student-joined') {
-          // Call the student when they send join message
+          // Store student user info if provided
+          if (data.userName) {
+            const existingParticipant = participants.value.find(p => p.peerId === data.studentId)
+            if (existingParticipant) {
+              existingParticipant.name = data.userName
+            }
+          }
           callStudent(data.studentId)
+        } else if (data.type === 'user-info') {
+          // Update participant name with actual user name
+          const existingParticipant = participants.value.find(p => p.peerId === dataConnection.peer)
+          if (existingParticipant && data.userName) {
+            existingParticipant.name = data.userName
+          }
         }
       })
       
@@ -355,6 +383,7 @@ const initializePeer = async () => {
 }
 
 const handleNewStream = (peerId: string, stream: MediaStream) => {
+  // Check if participant already exists, if not add with temporary name
   if (!participants.value.find(p => p.peerId === peerId)) {
     participants.value.push({
       peerId,
@@ -375,7 +404,7 @@ const removeParticipant = (peerId: string) => {
   const participantName = participants.value.find(p => p.peerId === peerId)?.name || 'Participant'
   participants.value = participants.value.filter(p => p.peerId !== peerId)
   calls.value.delete(peerId)
-  dataConnections.value.delete(peerId) // Also remove data connection
+  dataConnections.value.delete(peerId)
   remoteVideoRefs.value.delete(peerId)
   showSnackbar(`${participantName} left the conference`, 'info')
 }
@@ -417,7 +446,7 @@ const cleanup = () => {
   calls.value.forEach(call => call.close())
   calls.value.clear()
 
-  dataConnections.value.forEach(conn => conn.close()) // Clean up data connections
+  dataConnections.value.forEach(conn => conn.close())
   dataConnections.value.clear()
 
   if (peer.value) {
