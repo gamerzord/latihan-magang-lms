@@ -7,15 +7,6 @@ export default defineNuxtConfig({
   typescript: { shim: false },
   pages: true,
 
-  devServer: {
-    https: {
-      key: './localhost-key.pem',
-      cert: './localhost.pem',
-    },
-    port: 3000,
-    host: 'localhost',
-  },
-
   css: [
     'vuetify/styles',
     '@mdi/font/css/materialdesignicons.css',
@@ -24,30 +15,11 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: 'https://localhost:8000/api',
+      apiBase: 'https://lms.test/api',
     },
   },
 
   vite: {
-    server: {
-      hmr: {
-        host: 'localhost',
-        port:3000,
-        protocol: 'wss'
-      },
-      proxy: {
-        '/api': {
-          target: 'https://localhost:8000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/sanctum': {
-          target: 'https://localhost:8000',
-          changeOrigin: true,
-          secure: false,
-        },
-      },
-    },
     ssr: {
       noExternal: ['vuetify'],
     },
