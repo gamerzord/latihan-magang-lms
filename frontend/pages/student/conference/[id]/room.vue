@@ -101,7 +101,7 @@
         <!-- Center: Main Controls -->
         <div class="control-center">
           <v-tooltip text="Microphone" location="top">
-            <template v-slot:activator="{ props }">
+            <template #activator="{ props }">
               <v-btn
                 v-bind="props"
                 :class="['control-btn', { 'control-btn-active': !isMicOn }]"
@@ -116,7 +116,7 @@
           </v-tooltip>
 
           <v-tooltip text="Camera" location="top">
-            <template v-slot:activator="{ props }">
+            <template #activator="{ props }">
               <v-btn
                 v-bind="props"
                 :class="['control-btn', { 'control-btn-active': !isVideoOn }]"
@@ -131,7 +131,7 @@
           </v-tooltip>
 
           <v-tooltip text="Leave Conference" location="top">
-            <template v-slot:activator="{ props }">
+            <template #activator="{ props }">
               <v-btn
                 v-bind="props"
                 class="leave-btn"

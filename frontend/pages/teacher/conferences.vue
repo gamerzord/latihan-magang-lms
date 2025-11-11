@@ -242,9 +242,9 @@
               prepend-inner-icon="mdi-book-open-variant"
               required
             >
-              <template v-slot:item="{ props, item }">
+              <template #item="{ props, item }">
                 <v-list-item v-bind="props">
-                  <template v-slot:prepend>
+                  <template #prepend>
                     <v-avatar color="primary" size="40">
                       <v-icon color="white">mdi-book</v-icon>
                     </v-avatar>
@@ -293,7 +293,7 @@
       location="top"
     >
       {{ snackbar.text }}
-      <template v-slot:actions>
+      <template #actions>
         <v-btn icon size="small" @click="snackbar.show = false">
           <v-icon>mdi-close</v-icon>
         </v-btn>
