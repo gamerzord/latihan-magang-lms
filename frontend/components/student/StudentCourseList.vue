@@ -41,11 +41,9 @@
 <script setup lang="ts">
 import type { Course } from '~/types/models'
 
-interface Props {
+defineProps<{
   courses: Course[]
-}
-
-defineProps<Props>()
+}>()
 
 const enterCourse = (course: Course) => {
   navigateTo(`/student/courses/${course.id}`)

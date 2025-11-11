@@ -6,7 +6,7 @@
     border="start"
     class="mb-6 live-conference-banner"
   >
-    <template v-slot:prepend>
+    <template #prepend>
       <v-icon size="50" class="pulse-icon">mdi-video</v-icon>
     </template>
     
@@ -40,11 +40,10 @@
 <script setup lang="ts">
 import type { ActiveConference } from '~/types/models'
 
-interface Props {
+const props = defineProps<{
   courseId: number
-}
+}>()
 
-const props = defineProps<Props>()
 const config = useRuntimeConfig()
 
 const activeConference = ref<ActiveConference | null>(null)
